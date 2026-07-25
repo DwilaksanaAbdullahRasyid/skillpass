@@ -344,6 +344,37 @@ func (s *Service) SetRolePermissions(ctx context.Context, companyID uuid.UUID, r
 	return tx.Commit()
 }
 
+// GetRolePermissionIDs returns the permission IDs currently granted to a role.
+func (s *Service) GetRolePermissionIDs(ctx context.Context, companyID, roleID uuid.UUID) ([]string, error) {
+	var exists bool
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM hris_roles WHERE id = $1 AND company_id = $2)`,
+		roleID, companyID,
+	).Scan(&exists); err != nil {
+		return nil, fmt.Errorf("verify role: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("role not found")
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT permission_id FROM role_permissions WHERE role_id = $1`, roleID)
+	if err != nil {
+		return nil, fmt.Errorf("query role permissions: %w", err)
+	}
+	defer rows.Close()
+
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func isPGUniqueViolation(err error) bool {
 	return err != nil && (strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint"))
 }

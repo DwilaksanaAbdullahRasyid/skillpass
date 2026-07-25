@@ -5,8 +5,19 @@ import { LoadingFallback } from '@/components/ui/LoadingFallback';
 import { ApiError, api } from '@/lib/api';
 import type { CompanyApplicationResult as CompanyApplication } from '@/lib/api-types';
 import { ApplicationNotes } from '@/pages/CompanyApplications/ApplicationNotes';
+import { InterviewScheduleModal } from '@/pages/CompanyApplications/InterviewScheduleModal';
 
-const STATUS_OPTIONS = ['reviewed', 'interviewed', 'offered', 'rejected'] as const;
+// Valid next statuses per current status — mirrors the backend's
+// allowedTransitions map (server-go/internal/application/service.go).
+// The pipeline is forward-only: reviewed → interviewed → offered, with
+// rejection available at any active stage.
+const NEXT_STATUSES: Record<string, string[]> = {
+  applied: ['reviewed', 'rejected'],
+  reviewed: ['interviewed', 'rejected'],
+  interviewed: ['offered', 'rejected'],
+  offered: ['rejected'],
+  rejected: [],
+};
 
 const STATUS_BADGE: Record<string, string> = {
   applied: 'badge-ghost',
@@ -22,6 +33,7 @@ export function CompanyApplications() {
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
   const [notesAppId, setNotesAppId] = useState<string | null>(null);
+  const [interviewFor, setInterviewFor] = useState<CompanyApplication | null>(null);
 
   useEffect(() => {
     api<CompanyApplication[]>('/company/applications')
@@ -136,7 +148,7 @@ export function CompanyApplications() {
                             <MessageSquare size={14} />
                           </button>
 
-                          {app.status !== 'rejected' && app.status !== 'offered' && (
+                          {(NEXT_STATUSES[app.status ?? ''] ?? []).length > 0 && (
                             <select
                               className="select select-xs select-bordered w-28"
                               defaultValue=""
@@ -144,7 +156,13 @@ export function CompanyApplications() {
                               aria-label="Change status"
                               onChange={(e) => {
                                 const newStatus = e.target.value;
-                                if (newStatus && app.id) {
+                                e.target.value = ''; // reset back to the "Move" placeholder
+                                if (!newStatus || !app.id) return;
+                                // Moving to "interviewed" opens the scheduler modal;
+                                // the status change happens once the interview is saved.
+                                if (newStatus === 'interviewed') {
+                                  setInterviewFor(app);
+                                } else {
                                   handleStatusChange(app.id, newStatus);
                                 }
                               }}
@@ -152,7 +170,7 @@ export function CompanyApplications() {
                               <option value="" disabled>
                                 {updating === app.id ? 'Moving...' : 'Move'}
                               </option>
-                              {STATUS_OPTIONS.filter((s) => s !== app.status).map((s) => (
+                              {(NEXT_STATUSES[app.status ?? ''] ?? []).map((s) => (
                                 <option key={s} value={s}>
                                   {s.charAt(0).toUpperCase() + s.slice(1)}
                                 </option>
@@ -176,6 +194,22 @@ export function CompanyApplications() {
           </div>
         </div>
       ))}
+
+      {interviewFor?.id && (
+        <InterviewScheduleModal
+          applicationId={interviewFor.id}
+          candidateName={interviewFor.candidateName ?? 'this candidate'}
+          onClose={() => setInterviewFor(null)}
+          onScheduled={(updated) => {
+            setApplications((prev) =>
+              prev.map((a) =>
+                a.id === updated.id ? { ...a, status: updated.status, updatedAt: updated.updatedAt } : a,
+              ),
+            );
+            setInterviewFor(null);
+          }}
+        />
+      )}
     </div>
   );
 }

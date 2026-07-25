@@ -180,6 +180,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/applications/{id}/interview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Schedule an interview for an application
+         * @description Records an interview appointment (date/time + place) and moves the application to "interviewed", then notifies + emails the candidate. Requires verified company auth.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Application ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description Interview details */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ScheduleInterviewRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApplicationResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/applications/{id}/messages": {
         parameters: {
             query?: never;
@@ -4437,6 +4484,18 @@ export interface components {
         ReorderItem: {
             id: string;
             sortOrder: number;
+        };
+        ScheduleInterviewRequest: {
+            interviewer?: string;
+            /** @description address (onsite) */
+            location?: string;
+            /** @description URL (online) */
+            meetingLink?: string;
+            /** @description "onsite" | "online" */
+            mode?: string;
+            notes?: string;
+            /** @description RFC3339 date-time */
+            scheduledAt: string;
         };
         SkillNote: {
             note?: string;

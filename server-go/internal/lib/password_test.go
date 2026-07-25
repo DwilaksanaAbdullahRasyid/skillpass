@@ -54,8 +54,8 @@ func TestPasswordUniqueness(t *testing.T) {
 }
 
 func TestBcryptCostConstant(t *testing.T) {
-	if BcryptCost != 10 {
-		t.Fatalf("Expected BcryptCost=10, got %d", BcryptCost)
+	if BcryptCost != 12 {
+		t.Fatalf("Expected BcryptCost=12, got %d", BcryptCost)
 	}
 }
 

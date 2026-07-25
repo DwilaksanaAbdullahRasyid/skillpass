@@ -29,7 +29,7 @@ export default function PayslipView() {
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/hris/payroll-runs')}>
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-2xl font-semibold tracking-tight">
           Payslips {payslips?.[0] && `- ${payslips[0].periodStart} to ${payslips[0].periodEnd}`}
         </h1>
       </div>

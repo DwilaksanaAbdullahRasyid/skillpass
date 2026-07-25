@@ -167,6 +167,33 @@ func (s *Service) NotifyJobseekerOfStatus(ctx context.Context, applicationID, st
 	return nil
 }
 
+// NotifyJobseekerOfInterview notifies the jobseeker that an interview has been
+// scheduled, in-app and by email, with the date/time and place.
+func (s *Service) NotifyJobseekerOfInterview(ctx context.Context, applicationID, whenStr, place, notes string) error {
+	var jobseekerUserID uuid.UUID
+	var jobTitle string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT jp.user_id, j.title
+		 FROM applications a
+		 JOIN jobseeker_profiles jp ON jp.id = a.jobseeker_id
+		 JOIN job_postings j ON j.id = a.job_posting_id
+		 WHERE a.id = $1`,
+		applicationID,
+	).Scan(&jobseekerUserID, &jobTitle)
+	if err != nil {
+		return fmt.Errorf("lookup jobseeker user: %w", err)
+	}
+
+	title := "Interview scheduled"
+	body := fmt.Sprintf("You're invited to interview for %q on %s (%s).", jobTitle, whenStr, place)
+	if err := s.Create(ctx, jobseekerUserID.String(), "interview_scheduled", title, body, "/jobseeker/applications"); err != nil {
+		return err
+	}
+	s.sendEmail(ctx, jobseekerUserID,
+		email.InterviewScheduledEmail(jobTitle, whenStr, place, notes, email.AppBaseURL()+"/jobseeker/applications"))
+	return nil
+}
+
 // NotifyJobseekerOfNote notifies the jobseeker that the company left a note on their application.
 func (s *Service) NotifyJobseekerOfNote(ctx context.Context, applicationID string) error {
 	var jobseekerUserID uuid.UUID

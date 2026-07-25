@@ -16,5 +16,6 @@ type User struct {
 	Name         string    `bun:",notnull"`
 	AvatarURL    *string   `bun:",nullzero"`
 	IsVerified   bool      `bun:",notnull"`
+	TokenVersion int32     `bun:",notnull"`
 	CreatedAt    time.Time `bun:",notnull"`
 }

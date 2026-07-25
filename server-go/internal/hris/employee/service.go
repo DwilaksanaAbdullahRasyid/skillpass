@@ -2,13 +2,84 @@ package employee
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
+
+// ErrAlreadyLinked is returned when an employee already has a login account.
+var ErrAlreadyLinked = errors.New("employee already has a login account")
+
+// ErrEmailTaken is returned when the employee's email already belongs to a user.
+var ErrEmailTaken = errors.New("a user account with this email already exists")
+
+// randomPassword returns a short URL-safe temporary password.
+func randomPassword() string {
+	b := make([]byte, 9)
+	_, _ = rand.Read(b)
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+// InviteUser creates a login account for an employee (linking users.id to
+// employees.user_id) so they can sign in and use HRIS self-service. Returns the
+// login email and a one-time temporary password for HR to share.
+func (s *Service) InviteUser(ctx context.Context, companyID, employeeID uuid.UUID) (email, tempPassword string, err error) {
+	var first, last string
+	var existingUserID *uuid.UUID
+	err = s.db.QueryRowContext(ctx,
+		`SELECT email, first_name, last_name, user_id FROM employees WHERE id = $1 AND company_id = $2`,
+		employeeID, companyID,
+	).Scan(&email, &first, &last, &existingUserID)
+	if err != nil {
+		return "", "", err
+	}
+	if existingUserID != nil {
+		return "", "", ErrAlreadyLinked
+	}
+
+	var taken bool
+	if err = s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)`, email).Scan(&taken); err != nil {
+		return "", "", err
+	}
+	if taken {
+		return "", "", ErrEmailTaken
+	}
+
+	tempPassword = randomPassword()
+	hash, err := bcrypt.GenerateFromPassword([]byte(tempPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return "", "", err
+	}
+	name := strings.TrimSpace(first + " " + last)
+	if name == "" {
+		name = email
+	}
+
+	var userID uuid.UUID
+	err = s.db.QueryRowContext(ctx,
+		`INSERT INTO users (email, username, password_hash, role, name, is_verified)
+		 VALUES ($1, $2, $3, 'company', $4, true) RETURNING id`,
+		email, email, string(hash), name,
+	).Scan(&userID)
+	if err != nil {
+		return "", "", fmt.Errorf("create user: %w", err)
+	}
+
+	if _, err = s.db.ExecContext(ctx,
+		`UPDATE employees SET user_id = $1, updated_at = now() WHERE id = $2 AND company_id = $3`,
+		userID, employeeID, companyID,
+	); err != nil {
+		return "", "", fmt.Errorf("link user: %w", err)
+	}
+	return email, tempPassword, nil
+}
 
 type Service struct {
 	db *sql.DB

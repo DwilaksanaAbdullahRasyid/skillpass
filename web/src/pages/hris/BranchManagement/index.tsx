@@ -74,7 +74,7 @@ export default function BranchManagement() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Branches</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Branches</h1>
         {canManage && (
           <button type="button" className="btn btn-primary btn-sm gap-2" onClick={openCreate}>
             <Plus className="h-4 w-4" />
@@ -93,7 +93,7 @@ export default function BranchManagement() {
             <p className="text-base-content/50 col-span-full text-center py-8">No branches yet</p>
           )}
           {branches?.map((b) => (
-            <div key={b.id} className={`card bg-base-200 ${!b.isActive ? 'opacity-50' : ''}`}>
+            <div key={b.id} className={`card border border-base-300 bg-base-100 ${!b.isActive ? 'opacity-50' : ''}`}>
               <div className="card-body">
                 <div className="flex items-start justify-between">
                   <div>

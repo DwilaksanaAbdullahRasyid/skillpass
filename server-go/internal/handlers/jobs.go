@@ -321,6 +321,7 @@ func (h *JobHandler) CreateJob(c *gin.Context) {
 		Title:               req.Title,
 		Description:         req.Description,
 		Industry:            req.Industry,
+		Status:              "open",
 		Tags:                pqToStringArray(req.Tags),
 		RequiredSkills:      pqToStringArray(req.RequiredSkills),
 		ExperienceLevel:     req.ExperienceLevel,
@@ -458,7 +459,7 @@ func (h *JobHandler) UpdateJob(c *gin.Context) {
 	var jobs []models.JobPosting
 	err = query.Where("id = ? AND company_id = ?", jobUUID, companyUUID).
 		Returning("*").
-		Scan(c.Request.Context())
+		Scan(c.Request.Context(), &jobs)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update job"})
 		return

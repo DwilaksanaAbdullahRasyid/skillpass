@@ -97,6 +97,25 @@ func ApplicationReceivedEmail(jobTitle, candidateName, link string) Message {
 }
 
 // StatusUpdateEmail notifies a jobseeker that their application moved.
+// InterviewScheduledEmail invites a candidate to an interview with the
+// date/time and place (onsite address or online link) the company entered.
+func InterviewScheduledEmail(jobTitle, whenStr, place, notes, link string) Message {
+	lines := []string{
+		fmt.Sprintf("Good news — you've been invited to interview for %q.", jobTitle),
+		fmt.Sprintf("When: %s", whenStr),
+		fmt.Sprintf("Where: %s", place),
+	}
+	if notes != "" {
+		lines = append(lines, "Note from the hiring team: "+notes)
+	}
+	return render(fmt.Sprintf("Interview invitation for %s", jobTitle), templateData{
+		Heading:  "You're invited to an interview",
+		Lines:    lines,
+		CTAURL:   link,
+		CTALabel: "View my applications",
+	})
+}
+
 func StatusUpdateEmail(jobTitle, status, link string) Message {
 	return render(fmt.Sprintf("Update on your application for %s", jobTitle), templateData{
 		Heading: "Your application status changed",
