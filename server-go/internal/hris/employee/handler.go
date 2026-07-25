@@ -106,6 +106,131 @@ func (h *Handler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, emp)
 }
 
+// Invite creates a login account for an employee and returns a one-time
+// temporary password for HR to share. Requires employee.update.
+func (h *Handler) Invite(c *gin.Context) {
+	companyID, ok := mustParseCompanyID(c)
+	if !ok {
+		return
+	}
+	employeeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid employee ID"})
+		return
+	}
+
+	email, tempPassword, err := h.svc.InviteUser(c.Request.Context(), companyID, employeeID)
+	if err != nil {
+		switch {
+		case err == sql.ErrNoRows:
+			c.JSON(http.StatusNotFound, gin.H{"error": "Employee not found"})
+		case err == ErrAlreadyLinked:
+			c.JSON(http.StatusConflict, gin.H{"error": "Employee already has a login account"})
+		case err == ErrEmailTaken:
+			c.JSON(http.StatusConflict, gin.H{"error": "A user with this email already exists"})
+		default:
+			slog.Error("invite failed", "employeeID", employeeID, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create login"})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"email": email, "tempPassword": tempPassword})
+}
+
+// GetMe returns the current user's own employee record (self-service).
+// Available to any active company member; no extra permission needed.
+func (h *Handler) GetMe(c *gin.Context) {
+	companyID, ok := mustParseCompanyID(c)
+	if !ok {
+		return
+	}
+	employeeID, err := uuid.Parse(c.GetString("employeeId"))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Employee ID not found in context"})
+		return
+	}
+	emp, err := h.svc.Get(c.Request.Context(), companyID, employeeID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Employee not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get employee"})
+		return
+	}
+	c.JSON(http.StatusOK, emp)
+}
+
+// SelfUpdateRequest is the whitelist of fields an employee may edit on their
+// own record. Employment terms (status, department, salary, etc.) are
+// deliberately excluded — those remain HR-controlled.
+type SelfUpdateRequest struct {
+	Phone                    *string `json:"phone,omitempty"`
+	DateOfBirth              *string `json:"dateOfBirth,omitempty"`
+	Gender                   *string `json:"gender,omitempty"`
+	MaritalStatus            *string `json:"maritalStatus,omitempty"`
+	Address                  *string `json:"address,omitempty"`
+	City                     *string `json:"city,omitempty"`
+	Province                 *string `json:"province,omitempty"`
+	PostalCode               *string `json:"postalCode,omitempty"`
+	NationalID               *string `json:"nationalId,omitempty"`
+	NPWP                     *string `json:"npwp,omitempty"`
+	BankName                 *string `json:"bankName,omitempty"`
+	BankAccountNumber        *string `json:"bankAccountNumber,omitempty"`
+	BankAccountHolder        *string `json:"bankAccountHolder,omitempty"`
+	EmergencyContactName     *string `json:"emergencyContactName,omitempty"`
+	EmergencyContactPhone    *string `json:"emergencyContactPhone,omitempty"`
+	EmergencyContactRelation *string `json:"emergencyContactRelation,omitempty"`
+} //@name SelfUpdateRequest
+
+// UpdateMe lets the current user edit their own personal fields (self-service).
+func (h *Handler) UpdateMe(c *gin.Context) {
+	companyID, ok := mustParseCompanyID(c)
+	if !ok {
+		return
+	}
+	employeeID, err := uuid.Parse(c.GetString("employeeId"))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Employee ID not found in context"})
+		return
+	}
+
+	var req SelfUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	upd := UpdateRequest{
+		Phone:                    req.Phone,
+		DateOfBirth:              req.DateOfBirth,
+		Gender:                   req.Gender,
+		MaritalStatus:            req.MaritalStatus,
+		Address:                  req.Address,
+		City:                     req.City,
+		Province:                 req.Province,
+		PostalCode:               req.PostalCode,
+		NationalID:               req.NationalID,
+		NPWP:                     req.NPWP,
+		BankName:                 req.BankName,
+		BankAccountNumber:        req.BankAccountNumber,
+		BankAccountHolder:        req.BankAccountHolder,
+		EmergencyContactName:     req.EmergencyContactName,
+		EmergencyContactPhone:    req.EmergencyContactPhone,
+		EmergencyContactRelation: req.EmergencyContactRelation,
+	}
+	emp, err := h.svc.Update(c.Request.Context(), companyID, employeeID, upd)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Employee not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update record"})
+		return
+	}
+	c.JSON(http.StatusOK, emp)
+}
+
 func (h *Handler) List(c *gin.Context) {
 	companyID, ok := mustParseCompanyID(c)
 	if !ok {

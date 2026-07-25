@@ -11,7 +11,7 @@ export default function OrgChart() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Organization Chart</h1>
+      <h1 className="text-2xl font-semibold tracking-tight mb-6">Organization Chart</h1>
 
       {isLoading ? (
         <div className="flex justify-center p-12">

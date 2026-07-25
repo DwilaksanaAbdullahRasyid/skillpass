@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ type Notifier interface {
 	NotifyCompanyOfApplication(ctx context.Context, jobPostingID, jobseekerProfileID string) error
 	NotifyJobseekerOfStatus(ctx context.Context, applicationID, status string) error
 	NotifyJobseekerOfNote(ctx context.Context, applicationID string) error
+	NotifyJobseekerOfInterview(ctx context.Context, applicationID, whenStr, place, notes string) error
 }
 
 // WebhookDispatcher posts events to externally registered webhooks.
@@ -367,3 +369,91 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, result)
 }
+
+// ScheduleInterview	godoc
+// @Summary		Schedule an interview for an application
+// @Description	Records an interview appointment (date/time + place) and moves the application to "interviewed", then notifies + emails the candidate. Requires verified company auth.
+// @Tags		applications
+// @Accept		json
+// @Produce		json
+// @Security	BearerAuth
+// @Param		id path string true "Application ID"
+// @Param		body body ScheduleInterviewRequest true "Interview details"
+// @Success		200 {object} ApplicationResult
+// @Router		/applications/{id}/interview [post]
+func (h *Handler) ScheduleInterview(c *gin.Context) {
+	companyID, ok := getCompanyID(c)
+	if !ok {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Company access required"})
+		return
+	}
+	userID, _ := getUserID(c)
+
+	applicationID := c.Param("id")
+	if _, err := uuid.Parse(applicationID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid application ID"})
+		return
+	}
+
+	var req ScheduleInterviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: scheduledAt is required"})
+		return
+	}
+
+	scheduledAt, err := time.Parse(time.RFC3339, req.ScheduledAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scheduledAt: expected RFC3339 date-time"})
+		return
+	}
+
+	result, err := h.service.ScheduleInterview(c.Request.Context(), applicationID, companyID, userID, InterviewDetails{
+		ScheduledAt: scheduledAt,
+		Mode:        req.Mode,
+		Location:    req.Location,
+		MeetingLink: req.MeetingLink,
+		Interviewer: req.Interviewer,
+		Notes:       req.Notes,
+	})
+	if err != nil {
+		slog.Error("failed to schedule interview", "applicationID", applicationID, "error", err)
+		switch {
+		case errors.Is(err, ErrAppNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		case errors.Is(err, ErrForbidden):
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		case errors.Is(err, ErrInvalidStatus):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Candidate must be in the reviewed stage to schedule an interview"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to schedule interview"})
+		}
+		return
+	}
+
+	// Best-effort: notify + email the candidate with the appointment details.
+	if h.notifier != nil {
+		place := req.Location
+		if req.Mode == "online" {
+			place = req.MeetingLink
+		}
+		if place == "" {
+			place = "to be confirmed"
+		}
+		whenStr := scheduledAt.Format("Mon, 02 Jan 2006 15:04")
+		if err := h.notifier.NotifyJobseekerOfInterview(c.Request.Context(), applicationID, whenStr, place, req.Notes); err != nil {
+			slog.Warn("failed to notify jobseeker of interview", "error", err)
+		}
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// ScheduleInterviewRequest is the body for POST /applications/:id/interview.
+type ScheduleInterviewRequest struct {
+	ScheduledAt string `json:"scheduledAt" binding:"required"` // RFC3339 date-time
+	Mode        string `json:"mode"`                           // "onsite" | "online"
+	Location    string `json:"location"`                       // address (onsite)
+	MeetingLink string `json:"meetingLink"`                    // URL (online)
+	Interviewer string `json:"interviewer"`
+	Notes       string `json:"notes"`
+} //@name ScheduleInterviewRequest

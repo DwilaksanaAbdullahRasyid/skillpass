@@ -22,7 +22,7 @@ export default function LeaveBalancePage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">My Leave Balance — {year}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">My Leave Balance — {year}</h1>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

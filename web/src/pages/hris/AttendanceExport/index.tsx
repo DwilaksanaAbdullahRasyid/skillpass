@@ -35,7 +35,7 @@ export default function AttendanceExport() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Attendance Export</h1>
+      <h1 className="text-2xl font-semibold tracking-tight mb-6">Attendance Export</h1>
 
       <div className="flex flex-wrap gap-3 items-end mb-6">
         <label className="form-control">

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lib/pq"
 	"github.com/uptrace/bun"
 )
 
@@ -144,9 +145,9 @@ func (h *SearchHandler) SearchCandidates(c *gin.Context) {
 	}
 
 	var expRows []struct {
-		ProfileID  string
-		Industry   *string
-		SkillsRaw  *string
+		ProfileID string
+		Industry  *string
+		Skills    pq.StringArray
 	}
 	{
 		placeholders := make([]string, len(profileIDs))
@@ -156,7 +157,7 @@ func (h *SearchHandler) SearchCandidates(c *gin.Context) {
 			expArgs[i] = pid
 		}
 		expQuery := fmt.Sprintf(
-			`SELECT profile_id, industry, skills_used::text FROM job_experiences WHERE profile_id IN (%s)`,
+			`SELECT profile_id, industry, skills_used FROM job_experiences WHERE profile_id IN (%s)`,
 			strings.Join(placeholders, ","),
 		)
 		eRows, err := h.db.QueryContext(c.Request.Context(), expQuery, expArgs...)
@@ -167,11 +168,13 @@ func (h *SearchHandler) SearchCandidates(c *gin.Context) {
 		}
 		for eRows.Next() {
 			var e struct {
-				ProfileID  string
-				Industry   *string
-				SkillsRaw  *string
+				ProfileID string
+				Industry  *string
+				Skills    pq.StringArray
 			}
-			if err := eRows.Scan(&e.ProfileID, &e.Industry, &e.SkillsRaw); err != nil {
+			// pq.StringArray decodes the Postgres text[] column directly,
+			// handling quoting/escaping of multi-word skills correctly.
+			if err := eRows.Scan(&e.ProfileID, &e.Industry, &e.Skills); err != nil {
 				eRows.Close()
 				slog.Error("scan experience", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "scan experience"})
@@ -196,18 +199,10 @@ func (h *SearchHandler) SearchCandidates(c *gin.Context) {
 		if industry != "" && e.Industry != nil && strings.EqualFold(*e.Industry, industry) {
 			agg.hasInd = true
 		}
-		if e.SkillsRaw != nil {
-			// Parse PostgreSQL array format {elem1,elem2} -> individual elements
-			raw := *e.SkillsRaw
-			if len(raw) >= 2 && raw[0] == '{' && raw[len(raw)-1] == '}' {
-				inner := raw[1 : len(raw)-1]
-				for _, s := range strings.Split(inner, ",") {
-					s = strings.TrimSpace(s)
-					if s == "" {
-						continue
-					}
-					agg.skillSet[strings.ToLower(s)] = struct{}{}
-				}
+		for _, s := range e.Skills {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				agg.skillSet[strings.ToLower(s)] = struct{}{}
 			}
 		}
 	}

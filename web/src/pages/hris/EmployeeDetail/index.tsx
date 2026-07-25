@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getEmployee, type UpdateEmployeeRequest, updateEmployee } from '@/lib/hris/employees';
 import { listBranches, listDepartments, listPositions } from '@/lib/hris/org';
+import { EmployeeAccessPanel } from '@/pages/hris/EmployeeDetail/EmployeeAccessPanel';
 
 export default function EmployeeDetail() {
   const { id } = useParams<{ id: string }>();
@@ -70,7 +71,7 @@ export default function EmployeeDetail() {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-2xl font-semibold tracking-tight">
             {emp.firstName} {emp.lastName}
           </h1>
           <p className="text-sm text-base-content/60">
@@ -92,7 +93,7 @@ export default function EmployeeDetail() {
 
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="card bg-base-200">
+          <div className="card border border-base-300 bg-base-100">
             <div className="card-body">
               <h2 className="card-title text-base">Personal Info</h2>
               <Field label="First Name" name="firstName" value={emp.firstName} editing={editing} />
@@ -105,7 +106,7 @@ export default function EmployeeDetail() {
             </div>
           </div>
 
-          <div className="card bg-base-200">
+          <div className="card border border-base-300 bg-base-100">
             <div className="card-body">
               <h2 className="card-title text-base">Employment</h2>
               <div className="form-control">
@@ -225,7 +226,7 @@ export default function EmployeeDetail() {
             </div>
           </div>
 
-          <div className="card bg-base-200">
+          <div className="card border border-base-300 bg-base-100">
             <div className="card-body">
               <h2 className="card-title text-base">Address</h2>
               <Field label="Address" name="address" value={emp.address} editing={editing} />
@@ -235,7 +236,7 @@ export default function EmployeeDetail() {
             </div>
           </div>
 
-          <div className="card bg-base-200">
+          <div className="card border border-base-300 bg-base-100">
             <div className="card-body">
               <h2 className="card-title text-base">Emergency Contact</h2>
               <Field label="Name" name="emergencyContactName" value={emp.emergencyContactName} editing={editing} />
@@ -273,6 +274,8 @@ export default function EmployeeDetail() {
           </div>
         )}
       </form>
+
+      <EmployeeAccessPanel employeeId={id ?? ''} hasLogin={!!emp.userId} />
     </div>
   );
 }

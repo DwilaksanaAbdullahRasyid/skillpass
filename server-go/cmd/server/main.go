@@ -272,6 +272,7 @@ func main() {
 		appStatusGroup.Use(m)
 	}
 	appStatusGroup.PUT("/:id/status", appHandler.UpdateStatus)
+	appStatusGroup.POST("/:id/interview", appHandler.ScheduleInterview)
 	appStatusGroup.GET("/:id/messages", appHandler.ListMessages)
 	appStatusGroup.POST("/:id/messages", appHandler.AddMessage)
 
@@ -359,6 +360,13 @@ func main() {
 	hrisEmployees.POST("", rbac.RequirePermission(rbacService, "employee.create"), empHandler.Create)
 	hrisEmployees.GET("/:id", rbac.RequirePermission(rbacService, "employee.view", "employee.view_team", "employee.view_self"), empHandler.Get)
 	hrisEmployees.PUT("/:id", rbac.RequirePermission(rbacService, "employee.update"), empHandler.Update)
+
+	// Employee self-service ("My Info") — any active member can view/edit own record.
+	hris.GET("/me/employee", empHandler.GetMe)
+	hris.PUT("/me/employee", empHandler.UpdateMe)
+
+	// Invite an employee to HRIS (create login) — requires employee.update.
+	hrisEmployees.POST("/:id/invite", rbac.RequirePermission(rbacService, "employee.update"), empHandler.Invite)
 
 	hrisBranches := hris.Group("/branches")
 	hrisBranches.GET("", rbac.RequirePermission(rbacService, "org.view"), orgHandler.ListBranches)
@@ -508,7 +516,147 @@ func main() {
 		c.JSON(http.StatusOK, roles)
 	})
 
+	// All permissions (for the roles matrix), grouped client-side by module.
+	hris.GET("/permissions", rbac.RequirePermission(rbacService, "org.view", "roles.manage"), func(c *gin.Context) {
+		perms, err := rbacService.ListPermissions(c.Request.Context())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list permissions"})
+			return
+		}
+		c.JSON(http.StatusOK, perms)
+	})
+
+	// Permission IDs granted to a specific role (for matrix checked-state).
+	hrisRoles.GET("/:roleId/permissions", rbac.RequirePermission(rbacService, "org.view", "roles.manage"), func(c *gin.Context) {
+		cid, err := uuid.Parse(c.GetString("companyId"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid company ID"})
+			return
+		}
+		roleID, err := uuid.Parse(c.Param("roleId"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+			return
+		}
+		ids, err := rbacService.GetRolePermissionIDs(c.Request.Context(), cid, roleID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load role permissions"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"permissionIds": ids})
+	})
+
+	// Replace a role's permission set (roles.manage).
+	hrisRoles.PUT("/:roleId/permissions", rbac.RequirePermission(rbacService, "roles.manage"), func(c *gin.Context) {
+		cid, err := uuid.Parse(c.GetString("companyId"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid company ID"})
+			return
+		}
+		roleID, err := uuid.Parse(c.Param("roleId"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+			return
+		}
+		var req struct {
+			PermissionIDs []string `json:"permissionIds"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if err := rbacService.SetRolePermissions(c.Request.Context(), cid, roleID, req.PermissionIDs); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Permissions updated"})
+	})
+
+	// Create a custom role (roles.manage).
+	hrisRoles.POST("", rbac.RequirePermission(rbacService, "roles.manage"), func(c *gin.Context) {
+		cid, err := uuid.Parse(c.GetString("companyId"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid company ID"})
+			return
+		}
+		var req struct {
+			Name        string  `json:"name" binding:"required"`
+			Description *string `json:"description"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		role, err := rbacService.CreateRole(c.Request.Context(), cid, req.Name, req.Description)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusCreated, role)
+	})
+
+	// Update / delete a custom role (roles.manage). System roles are protected.
+	hrisRoles.PUT("/:roleId", rbac.RequirePermission(rbacService, "roles.manage"), func(c *gin.Context) {
+		cid, err := uuid.Parse(c.GetString("companyId"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid company ID"})
+			return
+		}
+		roleID, err := uuid.Parse(c.Param("roleId"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+			return
+		}
+		var req struct {
+			Name        string  `json:"name" binding:"required"`
+			Description *string `json:"description"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		role, err := rbacService.UpdateRole(c.Request.Context(), cid, roleID, req.Name, req.Description)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, role)
+	})
+	hrisRoles.DELETE("/:roleId", rbac.RequirePermission(rbacService, "roles.manage"), func(c *gin.Context) {
+		cid, err := uuid.Parse(c.GetString("companyId"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid company ID"})
+			return
+		}
+		roleID, err := uuid.Parse(c.Param("roleId"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+			return
+		}
+		if err := rbacService.DeleteRole(c.Request.Context(), cid, roleID); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Role deleted"})
+	})
+
 	hrisEmployeeRoles := hris.Group("/employees/:id/roles")
+	hrisEmployeeRoles.GET("", rbac.RequirePermission(rbacService, "org.view", "roles.manage"), func(c *gin.Context) {
+		employeeID, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid employee ID"})
+			return
+		}
+		roles, err := rbacService.GetEmployeeRoles(c.Request.Context(), employeeID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list employee roles"})
+			return
+		}
+		if roles == nil {
+			roles = []rbac.Role{}
+		}
+		c.JSON(http.StatusOK, roles)
+	})
 	hrisEmployeeRoles.POST("", rbac.RequirePermission(rbacService, "roles.manage"), func(c *gin.Context) {
 		companyID, err := uuid.Parse(c.GetString("companyId"))
 		if err != nil {

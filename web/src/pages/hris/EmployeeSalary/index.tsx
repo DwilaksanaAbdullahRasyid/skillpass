@@ -68,7 +68,7 @@ export default function EmployeeSalaryPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Employee Salary Setup</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Employee Salary Setup</h1>
         {canManage && (
           <button type="button" className="btn btn-primary btn-sm" onClick={() => saveMut.mutate()}>
             <Save className="h-4 w-4" /> Save

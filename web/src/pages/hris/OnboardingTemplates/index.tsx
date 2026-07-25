@@ -93,7 +93,7 @@ export default function OnboardingTemplates() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Onboarding Templates</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Onboarding Templates</h1>
         {canManage && (
           <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4" /> New Template

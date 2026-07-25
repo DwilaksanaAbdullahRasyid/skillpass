@@ -76,7 +76,7 @@ export default function PositionManagement() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Positions</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Positions</h1>
         {canManage && (
           <button type="button" className="btn btn-primary btn-sm gap-2" onClick={openCreate}>
             <Plus className="h-4 w-4" />
