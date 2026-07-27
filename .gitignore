@@ -33,3 +33,9 @@ server-go/.gen/neondb/
 # MarkItDown exports (generated markdown files)
 markitdown-service/export-pdf/*
 !markitdown-service/export-pdf/.gitkeep
+
+# Local-only demo/dummy-data seeders — NEVER commit (they contain fake but
+# PII-shaped data: names, NIK/NPWP, bank accounts). See server-go/cmd/seed/README.md.
+server-go/cmd/seeddemo/
+server-go/cmd/seedhris/
+server-go/cmd/seed-local*/
