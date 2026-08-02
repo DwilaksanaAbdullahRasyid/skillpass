@@ -146,7 +146,6 @@ export default function RoleManagement() {
               }}
             >
               <input
-                autoFocus
                 className="input input-sm input-bordered w-full mb-2"
                 placeholder="Role name…"
                 value={newRoleName}
