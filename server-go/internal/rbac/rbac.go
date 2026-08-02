@@ -316,6 +316,39 @@ func (s *Service) SetRolePermissions(ctx context.Context, companyID uuid.UUID, r
 		return fmt.Errorf("role not found")
 	}
 
+	// Validate all permission IDs exist before starting the transaction
+	if len(permissionIDs) > 0 {
+		rows, err := s.db.QueryContext(ctx,
+			`SELECT id FROM permissions WHERE id = ANY($1)`, permissionIDs,
+		)
+		if err != nil {
+			return fmt.Errorf("validate permissions: %w", err)
+		}
+		defer rows.Close()
+
+		found := make(map[string]bool)
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				return fmt.Errorf("scan permission id: %w", err)
+			}
+			found[id] = true
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("iterate permission ids: %w", err)
+		}
+
+		var invalid []string
+		for _, pid := range permissionIDs {
+			if !found[pid] {
+				invalid = append(invalid, pid)
+			}
+		}
+		if len(invalid) > 0 {
+			return fmt.Errorf("invalid permission IDs: %v", invalid)
+		}
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
