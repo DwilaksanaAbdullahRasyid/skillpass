@@ -3,11 +3,16 @@ package rbac
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
 )
+
+// ErrRoleNotFound is returned when a role does not exist (or does not belong
+// to the requesting company).
+var ErrRoleNotFound = errors.New("role not found")
 
 type Service struct {
 	db *sql.DB
@@ -313,7 +318,7 @@ func (s *Service) SetRolePermissions(ctx context.Context, companyID uuid.UUID, r
 		return fmt.Errorf("verify role: %w", err)
 	}
 	if !exists {
-		return fmt.Errorf("role not found")
+		return ErrRoleNotFound
 	}
 
 	// Validate all permission IDs exist before starting the transaction
@@ -387,7 +392,7 @@ func (s *Service) GetRolePermissionIDs(ctx context.Context, companyID, roleID uu
 		return nil, fmt.Errorf("verify role: %w", err)
 	}
 	if !exists {
-		return nil, fmt.Errorf("role not found")
+		return nil, ErrRoleNotFound
 	}
 
 	rows, err := s.db.QueryContext(ctx,

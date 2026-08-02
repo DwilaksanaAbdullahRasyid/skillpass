@@ -40,6 +40,13 @@ definitions:
       updatedAt:
         type: string
     type: object
+  AssignRoleRequest:
+    properties:
+      roleId:
+        type: string
+    required:
+    - roleId
+    type: object
   CandidateMatch:
     properties:
       headline:
@@ -210,6 +217,15 @@ definitions:
     - description
     - industry
     - title
+    type: object
+  CreateRoleRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+    required:
+    - name
     type: object
   DevelopmentStep:
     properties:
@@ -416,6 +432,17 @@ definitions:
       website:
         type: string
     type: object
+  PermissionResponse:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      module:
+        type: string
+    type: object
   ProfileResponse:
     properties:
       about:
@@ -533,6 +560,24 @@ definitions:
     - id
     - sortOrder
     type: object
+  RolePermissionsResponse:
+    properties:
+      permissionIds:
+        items:
+          type: string
+        type: array
+    type: object
+  RoleResponse:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      isSystem:
+        type: boolean
+      name:
+        type: string
+    type: object
   ScheduleInterviewRequest:
     properties:
       interviewer:
@@ -553,6 +598,13 @@ definitions:
         type: string
     required:
     - scheduledAt
+    type: object
+  SetRolePermissionsRequest:
+    properties:
+      permissionIds:
+        items:
+          type: string
+        type: array
     type: object
   SkillNote:
     properties:
@@ -725,6 +777,15 @@ definitions:
         type: string
       yearsOfExperience:
         type: integer
+    type: object
+  UpdateRoleRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+    required:
+    - name
     type: object
   UserResponse:
     properties:
@@ -2417,6 +2478,376 @@ paths:
       summary: Health check
       tags:
       - health
+  /hris/employees/{id}/roles:
+    get:
+      description: Returns all roles assigned to a specific employee
+      parameters:
+      - description: Employee UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/RoleResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List employee roles
+      tags:
+      - rbac
+    post:
+      consumes:
+      - application/json
+      description: Assigns a role to an employee
+      parameters:
+      - description: Employee UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role to assign
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/AssignRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Assign role to employee
+      tags:
+      - rbac
+  /hris/employees/{id}/roles/{roleId}:
+    delete:
+      description: Removes a role from an employee
+      parameters:
+      - description: Employee UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role UUID
+        in: path
+        name: roleId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Remove role from employee
+      tags:
+      - rbac
+  /hris/me/permissions:
+    get:
+      description: Returns the current employee's permissions and roles
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get my permissions and roles
+      tags:
+      - rbac
+  /hris/permissions:
+    get:
+      description: Returns all permissions grouped by module
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/PermissionResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List all permissions
+      tags:
+      - rbac
+  /hris/roles:
+    get:
+      description: Returns all HRIS roles for the authenticated company
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/RoleResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List company roles
+      tags:
+      - rbac
+    post:
+      consumes:
+      - application/json
+      description: Creates a new non-system role for the company
+      parameters:
+      - description: Role details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CreateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/RoleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a custom role
+      tags:
+      - rbac
+  /hris/roles/{roleId}:
+    delete:
+      description: Deletes a non-system role from the company
+      parameters:
+      - description: Role UUID
+        in: path
+        name: roleId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a custom role
+      tags:
+      - rbac
+    put:
+      consumes:
+      - application/json
+      description: Updates name/description of a non-system role
+      parameters:
+      - description: Role UUID
+        in: path
+        name: roleId
+        required: true
+        type: string
+      - description: Role details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/RoleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a custom role
+      tags:
+      - rbac
+  /hris/roles/{roleId}/permissions:
+    get:
+      description: Returns the permission IDs currently granted to a specific role
+      parameters:
+      - description: Role UUID
+        in: path
+        name: roleId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/RolePermissionsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get role permission IDs
+      tags:
+      - rbac
+    put:
+      consumes:
+      - application/json
+      description: Replaces the entire permission set for a role
+      parameters:
+      - description: Role UUID
+        in: path
+        name: roleId
+        required: true
+        type: string
+      - description: Permission IDs
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SetRolePermissionsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Replace role permissions
+      tags:
+      - rbac
   /industries:
     get:
       description: Get all industry categories for filtering
