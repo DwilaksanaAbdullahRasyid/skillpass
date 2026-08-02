@@ -336,7 +336,16 @@ func (s *Service) ScheduleInterview(ctx context.Context, applicationID, companyI
 		place = d.MeetingLink
 	}
 
-	if _, err := s.db.ExecContext(ctx, `
+	// All three writes (schedule, message, status) must be atomic: a failure
+	// halfway leaves orphaned rows. The candidate-facing notification is
+	// dispatched by the handler after this returns, so it stays outside.
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO interview_schedules
 			(application_id, scheduled_at, mode, location, meeting_link, interviewer, notes, created_by)
 		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), $8)
@@ -350,7 +359,7 @@ func (s *Service) ScheduleInterview(ctx context.Context, applicationID, companyI
 	if d.Notes != "" {
 		noteBody += " Note: " + d.Notes
 	}
-	if _, err := s.db.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO application_messages (application_id, sender_user_id, message_type, body)
 		VALUES ($1, $2, 'interview', $3)
 	`, applicationID, createdByUserID, noteBody); err != nil {
@@ -359,10 +368,22 @@ func (s *Service) ScheduleInterview(ctx context.Context, applicationID, companyI
 
 	app := current
 	if movingToInterviewed {
-		app = models.Application{ID: applicationUUID, Status: "interviewed"}
-		if _, err := s.bun.NewUpdate().Model(&app).Column("status").WherePK().Returning("*").Exec(ctx); err != nil {
-			return nil, fmt.Errorf("update application: %w", err)
+		res, err := tx.ExecContext(ctx,
+			`UPDATE applications SET status = 'interviewed', updated_at = now() WHERE id = $1`,
+			applicationUUID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("update application status: %w", err)
 		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return nil, fmt.Errorf("application not found during status update")
+		}
+		app.Status = "interviewed"
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit tx: %w", err)
 	}
 
 	return &ApplicationResult{
