@@ -353,6 +353,9 @@ func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, err
 	}
 
 	var total int
+	// Copy args for the COUNT query because the main query below appends
+	// pagination parameters (LIMIT, OFFSET) to the same args slice.
+	// Without the copy, those extra params would be sent to COUNT too.
 	countArgs := make([]any, len(args))
 	copy(countArgs, args)
 	err := s.db.QueryRowContext(ctx,

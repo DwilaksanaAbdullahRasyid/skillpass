@@ -167,16 +167,16 @@ func (h *Handler) GetMe(c *gin.Context) {
 type SelfUpdateRequest struct {
 	Phone                    *string `json:"phone,omitempty"`
 	DateOfBirth              *string `json:"dateOfBirth,omitempty"`
-	Gender                   *string `json:"gender,omitempty"`
-	MaritalStatus            *string `json:"maritalStatus,omitempty"`
+	Gender                   *string `json:"gender,omitempty" binding:"omitempty,oneof=male female other"`
+	MaritalStatus            *string `json:"maritalStatus,omitempty" binding:"omitempty,oneof=single married divorced widowed"`
 	Address                  *string `json:"address,omitempty"`
 	City                     *string `json:"city,omitempty"`
 	Province                 *string `json:"province,omitempty"`
-	PostalCode               *string `json:"postalCode,omitempty"`
-	NationalID               *string `json:"nationalId,omitempty"`
-	NPWP                     *string `json:"npwp,omitempty"`
+	PostalCode               *string `json:"postalCode,omitempty" binding:"omitempty,len=5"`
+	NationalID               *string `json:"nationalId,omitempty" binding:"omitempty,len=16"`
+	NPWP                     *string `json:"npwp,omitempty" binding:"omitempty,len=15"`
 	BankName                 *string `json:"bankName,omitempty"`
-	BankAccountNumber        *string `json:"bankAccountNumber,omitempty"`
+	BankAccountNumber        *string `json:"bankAccountNumber,omitempty" binding:"omitempty,min=5,max=20"`
 	BankAccountHolder        *string `json:"bankAccountHolder,omitempty"`
 	EmergencyContactName     *string `json:"emergencyContactName,omitempty"`
 	EmergencyContactPhone    *string `json:"emergencyContactPhone,omitempty"`
@@ -197,7 +197,7 @@ func (h *Handler) UpdateMe(c *gin.Context) {
 
 	var req SelfUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
 		return
 	}
 

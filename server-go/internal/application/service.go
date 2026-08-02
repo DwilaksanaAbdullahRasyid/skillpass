@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,6 +26,7 @@ var (
 	ErrAppNotFound     = errors.New("application not found")
 	ErrProfileNotFound = errors.New("jobseeker profile not found")
 	ErrForbidden       = errors.New("company does not own this application")
+	ErrInvalidMode     = errors.New("invalid mode: must be \"onsite\" or \"online\"")
 )
 
 // Allowed status transitions.
@@ -321,9 +323,13 @@ func (s *Service) ScheduleInterview(ctx context.Context, applicationID, companyI
 		return nil, ErrInvalidStatus
 	}
 
-	mode := d.Mode
-	if mode != "online" {
+	// Validate mode
+	mode := strings.ToLower(strings.TrimSpace(d.Mode))
+	if mode == "" {
 		mode = "onsite"
+	}
+	if mode != "onsite" && mode != "online" {
+		return nil, ErrInvalidMode
 	}
 	place := d.Location
 	if mode == "online" {

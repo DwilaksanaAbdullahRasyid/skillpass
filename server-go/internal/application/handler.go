@@ -424,6 +424,8 @@ func (h *Handler) ScheduleInterview(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		case errors.Is(err, ErrInvalidStatus):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Candidate must be in the reviewed stage to schedule an interview"})
+		case errors.Is(err, ErrInvalidMode):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to schedule interview"})
 		}
