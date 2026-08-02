@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -185,7 +187,15 @@ func (s *Service) NotifyJobseekerOfInterview(ctx context.Context, applicationID,
 	}
 
 	title := "Interview scheduled"
-	body := fmt.Sprintf("You're invited to interview for %q on %s (%s).", jobTitle, whenStr, place)
+	// Redact sensitive URL parameters from meeting links — store only the host
+	// and path so credentials/tokens embedded in query strings are not persisted.
+	displayPlace := place
+	if strings.Contains(place, "://") {
+		if u, err := url.Parse(place); err == nil {
+			displayPlace = u.Scheme + "://" + u.Host + u.Path
+		}
+	}
+	body := fmt.Sprintf("You're invited to interview for %q on %s (%s).", jobTitle, whenStr, displayPlace)
 	if err := s.Create(ctx, jobseekerUserID.String(), "interview_scheduled", title, body, "/jobseeker/applications"); err != nil {
 		return err
 	}
