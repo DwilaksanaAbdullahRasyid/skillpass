@@ -215,6 +215,16 @@ func TestSetRolePermissions(t *testing.T) {
 	if has {
 		t.Fatalf("expected %s permission to be revoked", perms[0].Code)
 	}
+
+	t.Run("rejects invalid permission IDs", func(t *testing.T) {
+		err := svc.SetRolePermissions(context.Background(), cID, role.ID, []string{
+			"00000000-0000-0000-0000-000000000000",
+			"ffffffff-ffff-ffff-ffff-ffffffffffff",
+		})
+		if err == nil {
+			t.Fatal("expected error for invalid permission IDs")
+		}
+	})
 }
 
 func TestHasAnyPermission(t *testing.T) {

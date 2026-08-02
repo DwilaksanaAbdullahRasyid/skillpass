@@ -168,4 +168,50 @@ func TestUpdateEmployee(t *testing.T) {
 	}
 }
 
+func TestInviteUser(t *testing.T) {
+	db := testutil.SetupTestDB()
+
+	_, cID, _ := testutil.CreateCompanyUser(db, "invco@ex.com", "invco", "pass123", "Inv Co", true)
+	seedEmployeeIDConfig(db, cID)
+	svc := NewService(db)
+
+	emp, err := svc.Create(context.Background(), cID, CreateRequest{
+		FirstName:      "Invite",
+		LastName:       "Me",
+		Email:          testutil.UniqueEmail("invite"),
+		EmploymentType: "permanent",
+		JoinDate:       time.Now().Format("2006-01-02"),
+	})
+	if err != nil {
+		t.Fatalf("create employee: %v", err)
+	}
+
+	t.Run("invite success", func(t *testing.T) {
+		email, tempPassword, err := svc.InviteUser(context.Background(), cID, emp.ID)
+		if err != nil {
+			t.Fatalf("InviteUser: %v", err)
+		}
+		if email == "" {
+			t.Fatal("expected non-empty email")
+		}
+		if tempPassword == "" {
+			t.Fatal("expected non-empty temp password")
+		}
+	})
+
+	t.Run("invite already linked", func(t *testing.T) {
+		_, _, err := svc.InviteUser(context.Background(), cID, emp.ID)
+		if err != ErrAlreadyLinked {
+			t.Fatalf("expected ErrAlreadyLinked, got %v", err)
+		}
+	})
+
+	t.Run("invite nonexistent employee", func(t *testing.T) {
+		_, _, err := svc.InviteUser(context.Background(), cID, uuid.New())
+		if err == nil {
+			t.Fatal("expected error for nonexistent employee")
+		}
+	})
+}
+
 func strPtr(s string) *string { return &s }
