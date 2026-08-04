@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -174,7 +175,7 @@ func (h *Handler) GetRolePermissions(c *gin.Context) {
 
 // SetRolePermissions godoc
 // @Summary      Replace role permissions
-// @Description  Replaces the entire permission set for a role
+// @Description  Replaces the entire permission set for a role. System roles are protected.
 // @Tags         rbac
 // @Accept       json
 // @Produce      json
@@ -183,6 +184,7 @@ func (h *Handler) GetRolePermissions(c *gin.Context) {
 // @Param        body body SetRolePermissionsRequest true "Permission IDs"
 // @Success      200 {object} map[string]string
 // @Failure      400 {object} map[string]string
+// @Failure      404 {object} map[string]string
 // @Failure      500 {object} map[string]string
 // @Router       /hris/roles/{roleId}/permissions [put]
 func (h *Handler) SetRolePermissions(c *gin.Context) {
@@ -197,11 +199,22 @@ func (h *Handler) SetRolePermissions(c *gin.Context) {
 	}
 	var req SetRolePermissionsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 	if err := h.svc.SetRolePermissions(c.Request.Context(), cid, roleID, req.PermissionIDs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		switch {
+		case errors.Is(err, ErrRoleNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		case errors.Is(err, ErrSystemRole):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "System roles cannot be modified"})
+		case errors.Is(err, ErrInvalidPermission):
+			slog.Error("set role permissions: invalid permission IDs", "roleID", roleID, "error", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "One or more permission IDs are invalid"})
+		default:
+			slog.Error("set role permissions failed", "roleID", roleID, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update role permissions"})
+		}
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Permissions updated"})
@@ -310,12 +323,16 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 // @Failure      500 {object} map[string]string
 // @Router       /hris/employees/{id}/roles [get]
 func (h *Handler) GetEmployeeRoles(c *gin.Context) {
+	cid, ok := mustParseCompanyID(c)
+	if !ok {
+		return
+	}
 	employeeID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid employee ID"})
 		return
 	}
-	roles, err := h.svc.GetEmployeeRoles(c.Request.Context(), employeeID)
+	roles, err := h.svc.GetEmployeeRoles(c.Request.Context(), cid, employeeID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list employee roles"})
 		return
@@ -345,6 +362,11 @@ func (h *Handler) AssignRole(c *gin.Context) {
 	if !ok {
 		return
 	}
+	requesterID, err := uuid.Parse(c.GetString("employeeId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid employee ID"})
+		return
+	}
 	employeeID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid employee ID"})
@@ -352,11 +374,21 @@ func (h *Handler) AssignRole(c *gin.Context) {
 	}
 	var req AssignRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
-	if err := h.svc.AssignRole(c.Request.Context(), cid, employeeID, req.RoleID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign role"})
+	if err := h.svc.AssignRole(c.Request.Context(), cid, requesterID, employeeID, req.RoleID); err != nil {
+		switch {
+		case errors.Is(err, ErrCannotSelfAssign):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "You cannot assign a role to yourself"})
+		case errors.Is(err, ErrRoleNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		case errors.Is(err, ErrEmployeeNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "Employee not found"})
+		default:
+			slog.Error("assign role failed", "employeeID", employeeID, "roleID", req.RoleID, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign role"})
+		}
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Role assigned"})
@@ -390,6 +422,11 @@ func (h *Handler) RemoveRole(c *gin.Context) {
 		return
 	}
 	if err := h.svc.RemoveRole(c.Request.Context(), cid, employeeID, roleID); err != nil {
+		if errors.Is(err, ErrRoleNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Role not found for this employee"})
+			return
+		}
+		slog.Error("remove role failed", "employeeID", employeeID, "roleID", roleID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove role"})
 		return
 	}
@@ -407,24 +444,33 @@ func (h *Handler) RemoveRole(c *gin.Context) {
 // @Failure      500 {object} map[string]string
 // @Router       /hris/me/permissions [get]
 func (h *Handler) GetMyPermissions(c *gin.Context) {
+	cid, ok := mustParseCompanyID(c)
+	if !ok {
+		return
+	}
 	employeeID, err := uuid.Parse(c.GetString("employeeId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid employee ID"})
 		return
 	}
-	perms, err := h.svc.GetEmployeePermissions(c.Request.Context(), employeeID)
+	perms, err := h.svc.GetEmployeePermissions(c.Request.Context(), cid, employeeID)
 	if err != nil {
+		slog.Error("get my permissions failed", "employeeID", employeeID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get permissions"})
 		return
 	}
-	roles, err := h.svc.GetEmployeeRoles(c.Request.Context(), employeeID)
+	roles, err := h.svc.GetEmployeeRoles(c.Request.Context(), cid, employeeID)
 	if err != nil {
+		slog.Error("get my roles failed", "employeeID", employeeID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get roles"})
 		return
 	}
 	roleResp := make([]RoleResponse, len(roles))
 	for i, r := range roles {
 		roleResp[i] = roleToResponse(r)
+	}
+	if perms == nil {
+		perms = []string{}
 	}
 	c.JSON(http.StatusOK, gin.H{"permissions": perms, "roles": roleResp})
 }

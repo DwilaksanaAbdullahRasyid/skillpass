@@ -137,11 +137,9 @@ func TestRBACHandlers(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+tok)
 		router.ServeHTTP(w, req)
-		// NOTE: the SetRolePermissions handler maps all service errors (including
-		// invalid permission IDs) to 500, not 400. The plan said 400; the test
-		// asserts the handler's actual behavior.
-		if w.Code != http.StatusInternalServerError {
-			t.Fatalf("expected 500 for invalid permission IDs, got %d: %s", w.Code, w.Body.String())
+		// Invalid permission IDs are a client error → 400 (M-8), not a 500.
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for invalid permission IDs, got %d: %s", w.Code, w.Body.String())
 		}
 	})
 

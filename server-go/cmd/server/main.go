@@ -22,12 +22,12 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
+	_ "skillpass-server-go/docs"
 	"skillpass-server-go/internal/analytics"
 	"skillpass-server-go/internal/application"
 	"skillpass-server-go/internal/authtoken"
 	"skillpass-server-go/internal/config"
 	"skillpass-server-go/internal/db"
-	_ "skillpass-server-go/docs"
 	"skillpass-server-go/internal/email"
 	"skillpass-server-go/internal/evaluation"
 	"skillpass-server-go/internal/handlers"
@@ -40,13 +40,13 @@ import (
 	"skillpass-server-go/internal/hris/payroll"
 	"skillpass-server-go/internal/hris/report"
 	"skillpass-server-go/internal/hris/shift"
-	"skillpass-server-go/internal/spdid"
 	"skillpass-server-go/internal/lib"
 	"skillpass-server-go/internal/matching"
 	"skillpass-server-go/internal/middleware"
 	"skillpass-server-go/internal/notification"
 	"skillpass-server-go/internal/rbac"
 	"skillpass-server-go/internal/resume"
+	"skillpass-server-go/internal/spdid"
 	"skillpass-server-go/internal/storage"
 	"skillpass-server-go/internal/webhook"
 
@@ -503,7 +503,7 @@ func main() {
 
 	hrisRoles := hris.Group("/roles")
 	hrisRoles.GET("", rbac.RequirePermission(rbacService, "org.view"), rbacHandler.ListRoles)
-	hris.GET("/permissions", rbac.RequirePermission(rbacService, "org.view", "roles.manage"), rbacHandler.ListPermissions)
+	hris.GET("/permissions", rbac.RequirePermission(rbacService, "roles.manage"), rbacHandler.ListPermissions)
 	hrisRoles.GET("/:roleId/permissions", rbac.RequirePermission(rbacService, "org.view", "roles.manage"), rbacHandler.GetRolePermissions)
 	hrisRoles.PUT("/:roleId/permissions", rbac.RequirePermission(rbacService, "roles.manage"), rbacHandler.SetRolePermissions)
 	hrisRoles.POST("", rbac.RequirePermission(rbacService, "roles.manage"), rbacHandler.CreateRole)
