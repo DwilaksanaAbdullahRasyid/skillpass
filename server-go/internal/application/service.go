@@ -275,6 +275,100 @@ func (s *Service) UpdateStatus(ctx context.Context, applicationID, companyID, st
 	}, nil
 }
 
+// InterviewDetails carries the scheduling fields for an interview invitation.
+type InterviewDetails struct {
+	ScheduledAt time.Time
+	Mode        string // "onsite" | "online"
+	Location    string
+	MeetingLink string
+	Interviewer string
+	Notes       string
+}
+
+// ScheduleInterview records an interview appointment and advances the
+// application to "interviewed" (from "reviewed"). If it is already
+// "interviewed" the appointment is added as a reschedule with no status change.
+// It also logs an "interview"-typed entry in the message thread.
+func (s *Service) ScheduleInterview(ctx context.Context, applicationID, companyID, createdByUserID string, d InterviewDetails) (*ApplicationResult, error) {
+	applicationUUID, err := lib.ParseUUID(applicationID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid application ID: %w", err)
+	}
+
+	var current models.Application
+	var ownerCompanyID uuid.UUID
+	err = s.bun.QueryRowContext(ctx, `
+		SELECT a.id, a.jobseeker_id, a.job_posting_id, a.status, a.created_at, a.updated_at, j.company_id
+		FROM applications a
+		JOIN job_postings j ON j.id = a.job_posting_id
+		WHERE a.id = ?
+		LIMIT 1
+	`, applicationUUID).Scan(&current.ID, &current.JobseekerID, &current.JobPostingID, &current.Status, &current.CreatedAt, &current.UpdatedAt, &ownerCompanyID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrAppNotFound
+		}
+		return nil, fmt.Errorf("query application: %w", err)
+	}
+	if ownerCompanyID.String() != companyID {
+		return nil, ErrForbidden
+	}
+
+	// Allow scheduling from a stage that can advance to interviewed, or as a
+	// reschedule when already interviewed.
+	movingToInterviewed := current.Status != "interviewed"
+	if movingToInterviewed && !contains(allowedTransitions[current.Status], "interviewed") {
+		return nil, ErrInvalidStatus
+	}
+
+	mode := d.Mode
+	if mode != "online" {
+		mode = "onsite"
+	}
+	place := d.Location
+	if mode == "online" {
+		place = d.MeetingLink
+	}
+
+	if _, err := s.db.ExecContext(ctx, `
+		INSERT INTO interview_schedules
+			(application_id, scheduled_at, mode, location, meeting_link, interviewer, notes, created_by)
+		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), $8)
+	`, applicationID, d.ScheduledAt, mode, d.Location, d.MeetingLink, d.Interviewer, d.Notes, createdByUserID); err != nil {
+		return nil, fmt.Errorf("insert interview schedule: %w", err)
+	}
+
+	// Record an interview note in the thread (best-effort in-app trail).
+	noteBody := fmt.Sprintf("📅 Interview scheduled for %s at %s.",
+		d.ScheduledAt.Format("Mon, 02 Jan 2006 15:04"), place)
+	if d.Notes != "" {
+		noteBody += " Note: " + d.Notes
+	}
+	if _, err := s.db.ExecContext(ctx, `
+		INSERT INTO application_messages (application_id, sender_user_id, message_type, body)
+		VALUES ($1, $2, 'interview', $3)
+	`, applicationID, createdByUserID, noteBody); err != nil {
+		return nil, fmt.Errorf("insert interview note: %w", err)
+	}
+
+	app := current
+	if movingToInterviewed {
+		app = models.Application{ID: applicationUUID, Status: "interviewed"}
+		if _, err := s.bun.NewUpdate().Model(&app).Column("status").WherePK().Returning("*").Exec(ctx); err != nil {
+			return nil, fmt.Errorf("update application: %w", err)
+		}
+	}
+
+	return &ApplicationResult{
+		ID:           app.ID.String(),
+		JobseekerID:  app.JobseekerID.String(),
+		JobPostingID: app.JobPostingID.String(),
+		Status:       app.Status,
+		CreatedAt:    app.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:    app.UpdatedAt.Format(time.RFC3339),
+	}, nil
+}
+
 // CompanyApplicationResult extends ApplicationResult with candidate info for company views.
 type CompanyApplicationResult struct {
 	ID                string  `json:"id"`

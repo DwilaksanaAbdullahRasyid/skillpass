@@ -33,7 +33,7 @@ func TestSkillsGap(t *testing.T) {
 	uID2, _, _ := testutil.CreateJobseeker(db, "gapjs2@ex.com", "gapjs2", "pass123", "Gap JS 2")
 	tok2 := testutil.GenerateToken(uID2.String(), "jobseeker", 15*time.Minute)
 
-	svc := NewService(db, nil)
+	svc := NewService(db, bun.NewDB(db, pgdialect.New()))
 	h := NewHandler(svc)
 
 	router := gin.New()
@@ -113,7 +113,7 @@ func TestMatching(t *testing.T) {
 	tok := testutil.GenerateToken(uID.String(), "jobseeker", 15*time.Minute)
 	ctok := testutil.GenerateToken(cu2.String(), "company", 15*time.Minute)
 
-	svc := NewService(db, nil)
+	svc := NewService(db, bun.NewDB(db, pgdialect.New()))
 	h := NewHandler(svc)
 
 	router := gin.New()

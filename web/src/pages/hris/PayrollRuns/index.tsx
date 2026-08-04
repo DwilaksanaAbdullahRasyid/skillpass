@@ -85,7 +85,7 @@ export default function PayrollRuns() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Payroll Runs</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Payroll Runs</h1>
         {canRun && (
           <button
             type="button"

@@ -66,6 +66,7 @@ const ShiftConfig = lazy(() => import('./pages/hris/ShiftConfig'));
 const ClockInPage = lazy(() => import('./pages/hris/ClockIn'));
 const AttendanceDashboard = lazy(() => import('./pages/hris/AttendanceDashboard'));
 const MyAttendance = lazy(() => import('./pages/hris/MyAttendance'));
+const MyInfo = lazy(() => import('./pages/hris/MyInfo'));
 const AttendanceExceptions = lazy(() => import('./pages/hris/AttendanceExceptions'));
 const LeaveTypes = lazy(() => import('./pages/hris/LeaveTypes'));
 const LeaveRequest = lazy(() => import('./pages/hris/LeaveRequest'));
@@ -261,6 +262,7 @@ const router = createBrowserRouter([
           { path: 'shifts', element: <ShiftConfig /> },
           { path: 'clock-in', element: <ClockInPage /> },
           { path: 'attendance', element: <AttendanceDashboard /> },
+          { path: 'my-info', element: <MyInfo /> },
           { path: 'my-attendance', element: <MyAttendance /> },
           { path: 'attendance-exceptions', element: <AttendanceExceptions /> },
           { path: 'leave-types', element: <LeaveTypes /> },

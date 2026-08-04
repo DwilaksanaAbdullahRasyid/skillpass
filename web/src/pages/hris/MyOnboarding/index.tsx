@@ -34,7 +34,7 @@ export default function MyOnboarding() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">My Onboarding</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">My Onboarding</h1>
           <p className="text-sm text-base-content/60">Template: {checklist.templateName}</p>
         </div>
         {checklist.status === 'completed' && (

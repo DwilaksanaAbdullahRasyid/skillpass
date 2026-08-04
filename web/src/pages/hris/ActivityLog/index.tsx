@@ -48,7 +48,7 @@ export default function ActivityLogPage() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold">Activity Log</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Activity Log</h1>
         <TableSkeleton rows={8} cols={4} />
       </div>
     );
@@ -58,7 +58,7 @@ export default function ActivityLogPage() {
     <div>
       <div className="flex items-center gap-3 mb-6">
         <ScrollText className="h-6 w-6 text-base-content/60" />
-        <h1 className="text-2xl font-bold">Activity Log</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Activity Log</h1>
         {data && <span className="text-sm text-base-content/40">{data.total} entries</span>}
       </div>
 

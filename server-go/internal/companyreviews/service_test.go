@@ -14,6 +14,12 @@ func TestCreateReview(t *testing.T) {
 	_, pID, _ := testutil.CreateJobseeker(db, "revjs@ex.com", "revjs", "pass123", "Rev JS")
 	svc := NewService(db)
 
+	// Eligibility gate requires the candidate to have applied to a job here.
+	jobID, _ := testutil.CreateJob(db, cID, "Reviewer Job", "Technology", true)
+	if _, err := testutil.CreateApplication(db, pID, jobID, "applied"); err != nil {
+		t.Fatalf("seed application: %v", err)
+	}
+
 	t.Run("submit review", func(t *testing.T) {
 		review, err := svc.Create(context.Background(), cID.String(), pID.String(), CreateReviewRequest{
 			Rating:          4,
@@ -57,8 +63,10 @@ func TestGetCompanyReviews(t *testing.T) {
 	_, cID, _ := testutil.CreateCompanyUser(db, "grco@ex.com", "grco", "pass123", "GR Co", true)
 	svc := NewService(db)
 
+	jobID, _ := testutil.CreateJob(db, cID, "GR Job", "Technology", true)
 	for i := 0; i < 3; i++ {
 		_, pID, _ := testutil.CreateJobseeker(db, "grjs"+string(rune('0'+i))+"@ex.com", "grjs"+string(rune('0'+i)), "pass123", "GR JS")
+		testutil.CreateApplication(db, pID, jobID, "applied")
 		svc.Create(context.Background(), cID.String(), pID.String(), CreateReviewRequest{
 			Rating:          4,
 			Review:          "Good",
@@ -81,6 +89,9 @@ func TestGetReputation(t *testing.T) {
 	_, cID, _ := testutil.CreateCompanyUser(db, "repco@ex.com", "repco", "pass123", "Rep Co", true)
 	_, pID, _ := testutil.CreateJobseeker(db, "repjs@ex.com", "repjs", "pass123", "Rep JS")
 	svc := NewService(db)
+
+	jobID, _ := testutil.CreateJob(db, cID, "Rep Job", "Technology", true)
+	testutil.CreateApplication(db, pID, jobID, "applied")
 
 	svc.Create(context.Background(), cID.String(), pID.String(), CreateReviewRequest{
 		Rating:          5,

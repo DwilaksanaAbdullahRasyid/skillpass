@@ -162,6 +162,52 @@
                 ]
             }
         },
+        "/applications/{id}/interview": {
+            "post": {
+                "description": "Records an interview appointment (date/time + place) and moves the application to \"interviewed\", then notifies + emails the candidate. Requires verified company auth.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Schedule an interview for an application",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Interview details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ScheduleInterviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ApplicationResult"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
         "/applications/{id}/messages": {
             "get": {
                 "description": "Company lists the message thread for an application it owns",
@@ -4268,6 +4314,36 @@
                 },
                 "sortOrder": {
                     "type": "integer"
+                }
+            }
+        },
+        "ScheduleInterviewRequest": {
+            "type": "object",
+            "required": [
+                "scheduledAt"
+            ],
+            "properties": {
+                "interviewer": {
+                    "type": "string"
+                },
+                "location": {
+                    "description": "address (onsite)",
+                    "type": "string"
+                },
+                "meetingLink": {
+                    "description": "URL (online)",
+                    "type": "string"
+                },
+                "mode": {
+                    "description": "\"onsite\" | \"online\"",
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "scheduledAt": {
+                    "description": "RFC3339 date-time",
+                    "type": "string"
                 }
             }
         },

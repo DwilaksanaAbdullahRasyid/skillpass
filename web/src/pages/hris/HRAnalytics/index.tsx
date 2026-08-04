@@ -34,7 +34,7 @@ export default function HRAnalytics() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">HR Analytics</h1>
+      <h1 className="text-2xl font-semibold tracking-tight mb-6">HR Analytics</h1>
 
       {stats && (
         <>

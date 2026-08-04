@@ -43,7 +43,7 @@ export default function EmployeeCreate() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold mb-6">Add Employee</h1>
+      <h1 className="text-2xl font-semibold tracking-tight mb-6">Add Employee</h1>
 
       {error && (
         <div className="alert alert-error mb-4">

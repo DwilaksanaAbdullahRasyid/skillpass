@@ -533,6 +533,27 @@ definitions:
     - id
     - sortOrder
     type: object
+  ScheduleInterviewRequest:
+    properties:
+      interviewer:
+        type: string
+      location:
+        description: address (onsite)
+        type: string
+      meetingLink:
+        description: URL (online)
+        type: string
+      mode:
+        description: '"onsite" | "online"'
+        type: string
+      notes:
+        type: string
+      scheduledAt:
+        description: RFC3339 date-time
+        type: string
+    required:
+    - scheduledAt
+    type: object
   SkillNote:
     properties:
       note:
@@ -1164,6 +1185,37 @@ paths:
       summary: List pending company verifications
       tags:
       - admin
+  /applications/{id}/interview:
+    post:
+      consumes:
+      - application/json
+      description: Records an interview appointment (date/time + place) and moves
+        the application to "interviewed", then notifies + emails the candidate. Requires
+        verified company auth.
+      parameters:
+      - description: Application ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Interview details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/ScheduleInterviewRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ApplicationResult'
+      security:
+      - BearerAuth: []
+      summary: Schedule an interview for an application
+      tags:
+      - applications
   /applications/{id}/messages:
     get:
       description: Company lists the message thread for an application it owns

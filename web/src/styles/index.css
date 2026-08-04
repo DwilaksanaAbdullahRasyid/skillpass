@@ -2,6 +2,49 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
+/*
+ * Talenta-inspired theme (Mekari design language): light, blue-forward,
+ * soft borders, generous radii. Scoped to the HRIS console via
+ * data-theme="talenta" on HRISLayout, so the marketplace app keeps
+ * its winter/dark themes untouched.
+ */
+@plugin "daisyui/theme" {
+  name: "talenta";
+  default: false;
+  prefersdark: false;
+  color-scheme: "light";
+
+  --color-base-100: #ffffff;
+  --color-base-200: #f4f6fa;
+  --color-base-300: #e3e8f0;
+  --color-base-content: #1d2939;
+
+  --color-primary: #1657d0;
+  --color-primary-content: #ffffff;
+  --color-secondary: #0e7490;
+  --color-secondary-content: #ffffff;
+  --color-accent: #2e90fa;
+  --color-accent-content: #ffffff;
+  --color-neutral: #1d2939;
+  --color-neutral-content: #ffffff;
+
+  --color-info: #2e90fa;
+  --color-info-content: #ffffff;
+  --color-success: #12b76a;
+  --color-success-content: #ffffff;
+  --color-warning: #f79009;
+  --color-warning-content: #ffffff;
+  --color-error: #f04438;
+  --color-error-content: #ffffff;
+
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
 @theme {
   --font-sans: "Outfit", sans-serif;
   --font-mono: "Fira Code", monospace;

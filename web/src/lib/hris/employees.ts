@@ -120,6 +120,45 @@ export function getEmployee(id: string): Promise<Employee> {
   return api<Employee>(`/hris/employees/${id}`);
 }
 
+// Self-service: the current user's own employee record.
+export function getMyEmployee(): Promise<Employee> {
+  return api<Employee>('/hris/me/employee');
+}
+
+export interface SelfUpdateRequest {
+  phone?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  maritalStatus?: string;
+  address?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  nationalId?: string;
+  npwp?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankAccountHolder?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelation?: string;
+}
+
+export function updateMyEmployee(data: SelfUpdateRequest): Promise<Employee> {
+  return api<Employee>('/hris/me/employee', { method: 'PUT', body: data });
+}
+
+export interface InviteResult {
+  email: string;
+  tempPassword: string;
+}
+
+// inviteEmployeeLogin creates a login account for an employee and returns a
+// one-time temporary password to share.
+export function inviteEmployeeLogin(id: string): Promise<InviteResult> {
+  return api<InviteResult>(`/hris/employees/${id}/invite`, { method: 'POST' });
+}
+
 export function createEmployee(data: CreateEmployeeRequest): Promise<Employee> {
   return api<Employee>('/hris/employees', {
     method: 'POST',

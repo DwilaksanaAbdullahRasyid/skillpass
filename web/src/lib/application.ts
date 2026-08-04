@@ -28,3 +28,24 @@ export async function addApplicationMessage(applicationId: string, body: string)
     body: { body },
   });
 }
+
+export interface ScheduleInterviewPayload {
+  scheduledAt: string; // RFC3339 / ISO date-time
+  mode: 'onsite' | 'online';
+  location?: string;
+  meetingLink?: string;
+  interviewer?: string;
+  notes?: string;
+}
+
+// scheduleInterview records an interview appointment and moves the application
+// to "interviewed", notifying + emailing the candidate.
+export async function scheduleInterview(
+  applicationId: string,
+  payload: ScheduleInterviewPayload,
+): Promise<Application> {
+  return api<Application>(`/applications/${applicationId}/interview`, {
+    method: 'POST',
+    body: payload,
+  });
+}
