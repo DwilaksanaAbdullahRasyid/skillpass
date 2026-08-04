@@ -3,6 +3,7 @@ package employee
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -66,27 +67,44 @@ func TestGetMeAndUpdateMe(t *testing.T) {
 		}
 	})
 
-	t.Run("update me invalid NIK rejected", func(t *testing.T) {
-		body := `{"nationalId":"123"}`
+	t.Run("update me ignores HR-managed NIK", func(t *testing.T) {
+		// M-4/SEC-06: NIK/NPWP/bank fields are HR-managed and no longer part of
+		// the self-service whitelist — the server ignores them rather than
+		// rejecting the whole request.
+		body := `{"nationalId":"1234567890123456"}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("PUT", "/api/v1/hris/me/employee", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+tok)
 		router.ServeHTTP(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("expected 400 for short NIK, got %d: %s", w.Code, w.Body.String())
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var emp Employee
+		if err := json.Unmarshal(w.Body.Bytes(), &emp); err != nil {
+			t.Fatalf("parse response: %v", err)
+		}
+		if emp.NationalID != nil && *emp.NationalID == "1234567890123456" {
+			t.Fatal("nationalId must not be settable via /me/employee")
 		}
 	})
 
-	t.Run("update me invalid NPWP rejected", func(t *testing.T) {
-		body := `{"npwp":"12345"}`
+	t.Run("update me ignores HR-managed NPWP", func(t *testing.T) {
+		body := `{"npwp":"123456789012345"}`
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("PUT", "/api/v1/hris/me/employee", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+tok)
 		router.ServeHTTP(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("expected 400 for short NPWP, got %d: %s", w.Code, w.Body.String())
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var emp Employee
+		if err := json.Unmarshal(w.Body.Bytes(), &emp); err != nil {
+			t.Fatalf("parse response: %v", err)
+		}
+		if emp.NPWP != nil && *emp.NPWP == "123456789012345" {
+			t.Fatal("npwp must not be settable via /me/employee")
 		}
 	})
 }

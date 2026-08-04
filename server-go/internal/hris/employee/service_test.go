@@ -3,6 +3,7 @@ package employee
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"testing"
 	"time"
 
@@ -212,6 +213,58 @@ func TestInviteUser(t *testing.T) {
 			t.Fatal("expected error for nonexistent employee")
 		}
 	})
+}
+
+func TestInviteUserConcurrent(t *testing.T) {
+	db := testutil.SetupTestDB()
+
+	_, cID, _ := testutil.CreateCompanyUser(db, "raceco@ex.com", "raceco", "pass123", "Race Co", true)
+	seedEmployeeIDConfig(db, cID)
+	svc := NewService(db)
+
+	emp, err := svc.Create(context.Background(), cID, CreateRequest{
+		FirstName:      "Race",
+		LastName:       "Me",
+		Email:          testutil.UniqueEmail("race"),
+		EmploymentType: "permanent",
+		JoinDate:       time.Now().Format("2006-01-02"),
+	})
+	if err != nil {
+		t.Fatalf("create employee: %v", err)
+	}
+
+	// Two goroutines invite the same employee at once. The email-taken check
+	// and user INSERT are atomic (ON CONFLICT DO NOTHING) inside one
+	// transaction, so exactly one invite succeeds and the other fails with
+	// ErrEmailTaken or ErrAlreadyLinked — never two successes.
+	const n = 2
+	errs := make(chan error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _, err := svc.InviteUser(context.Background(), cID, emp.ID)
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	var successes, conflicts int
+	for err := range errs {
+		switch {
+		case err == nil:
+			successes++
+		case err == ErrEmailTaken || err == ErrAlreadyLinked:
+			conflicts++
+		default:
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if successes != 1 || conflicts != 1 {
+		t.Fatalf("expected 1 success + 1 conflict, got %d success / %d conflict", successes, conflicts)
+	}
 }
 
 func strPtr(s string) *string { return &s }
