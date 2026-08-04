@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -620,6 +621,58 @@ func TestScheduleInterview(t *testing.T) {
 		router.ServeHTTP(w, req)
 		if w.Code != http.StatusForbidden {
 			t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("online meeting link redacted at rest", func(t *testing.T) {
+		// SEC-01: query-string credentials (?pwd=…) must never persist.
+		body := `{"scheduledAt":"2026-09-06T10:00:00Z","mode":"online","meetingLink":"https://meet.google.com/redact-me?pwd=SuperSecret2026#sess"}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/applications/%s/interview", appID),
+			bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+ctok)
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var stored string
+		db.QueryRowContext(context.Background(),
+			`SELECT meeting_link FROM interview_schedules
+			 WHERE application_id = $1 ORDER BY scheduled_at DESC LIMIT 1`, appID,
+		).Scan(&stored)
+		if stored != "https://meet.google.com/redact-me" {
+			t.Fatalf("expected redacted link, got %q", stored)
+		}
+		if strings.Contains(stored, "pwd=") || strings.Contains(stored, "#sess") {
+			t.Fatalf("stored meeting link leaked credentials: %q", stored)
+		}
+	})
+
+	t.Run("invalid meeting link rejected", func(t *testing.T) {
+		// F14: javascript:/data: URLs must not be accepted as meeting links.
+		body := `{"scheduledAt":"2026-09-07T10:00:00Z","mode":"online","meetingLink":"javascript:alert(1)"}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/applications/%s/interview", appID),
+			bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+ctok)
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for invalid meeting link, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("onsite without location rejected", func(t *testing.T) {
+		body := `{"scheduledAt":"2026-09-08T10:00:00Z","mode":"onsite"}`
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/applications/%s/interview", appID),
+			bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+ctok)
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for missing onsite location, got %d: %s", w.Code, w.Body.String())
 		}
 	})
 

@@ -5,13 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"skillpass-server-go/internal/email"
+	"skillpass-server-go/internal/lib"
 )
 
 // Service handles notification persistence and delivery using raw SQL.
@@ -188,14 +187,10 @@ func (s *Service) NotifyJobseekerOfInterview(ctx context.Context, applicationID,
 
 	title := "Interview scheduled"
 	// Redact sensitive URL parameters from meeting links — store only the host
-	// and path so credentials/tokens embedded in query strings are not persisted.
-	displayPlace := place
-	if strings.Contains(place, "://") {
-		if u, err := url.Parse(place); err == nil {
-			displayPlace = u.Scheme + "://" + u.Host + u.Path
-		}
-	}
-	body := fmt.Sprintf("You're invited to interview for %q on %s (%s).", jobTitle, whenStr, displayPlace)
+	// and path so credentials/tokens embedded in query strings (or fragments)
+	// are never persisted in the in-app notification. The email below still
+	// carries the full link so the candidate can actually join.
+	body := fmt.Sprintf("You're invited to interview for %q on %s (%s).", jobTitle, whenStr, lib.RedactURL(place))
 	if err := s.Create(ctx, jobseekerUserID.String(), "interview_scheduled", title, body, "/jobseeker/applications"); err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"time"
 
@@ -19,14 +20,16 @@ import (
 
 // Sentinel errors for error type discrimination.
 var (
-	ErrJobNotFound     = errors.New("job posting not found")
-	ErrJobClosed       = errors.New("job posting is not open for applications")
-	ErrDuplicate       = errors.New("already applied to this job")
-	ErrInvalidStatus   = errors.New("invalid status")
-	ErrAppNotFound     = errors.New("application not found")
-	ErrProfileNotFound = errors.New("jobseeker profile not found")
-	ErrForbidden       = errors.New("company does not own this application")
-	ErrInvalidMode     = errors.New("invalid mode: must be \"onsite\" or \"online\"")
+	ErrJobNotFound        = errors.New("job posting not found")
+	ErrJobClosed          = errors.New("job posting is not open for applications")
+	ErrDuplicate          = errors.New("already applied to this job")
+	ErrInvalidStatus      = errors.New("invalid status")
+	ErrAppNotFound        = errors.New("application not found")
+	ErrProfileNotFound    = errors.New("jobseeker profile not found")
+	ErrForbidden          = errors.New("company does not own this application")
+	ErrInvalidMode        = errors.New("invalid mode: must be \"onsite\" or \"online\"")
+	ErrInvalidMeetingLink = errors.New("invalid meeting link: must be an http(s) URL or a host form like meet.google.com/abc")
+	ErrMissingLocation    = errors.New("location is required for onsite interviews")
 )
 
 // Allowed status transitions.
@@ -331,9 +334,21 @@ func (s *Service) ScheduleInterview(ctx context.Context, applicationID, companyI
 	if mode != "onsite" && mode != "online" {
 		return nil, ErrInvalidMode
 	}
+
+	// Validate and sanitize the place. Online interviews must carry a usable
+	// meeting link; the stored value is redacted so query-string credentials
+	// (e.g. ?pwd=…) never persist in the DB, in the message thread, or in the
+	// in-app notification. The candidate still receives the full link by email
+	// (NotifyJobseekerOfInterview is called with the raw input by the handler).
 	place := d.Location
 	if mode == "online" {
+		if !isValidMeetingLink(d.MeetingLink) {
+			return nil, ErrInvalidMeetingLink
+		}
+		d.MeetingLink = lib.RedactURL(d.MeetingLink)
 		place = d.MeetingLink
+	} else if strings.TrimSpace(d.Location) == "" {
+		return nil, ErrMissingLocation
 	}
 
 	// All three writes (schedule, message, status) must be atomic: a failure
@@ -380,6 +395,8 @@ func (s *Service) ScheduleInterview(ctx context.Context, applicationID, companyI
 			return nil, fmt.Errorf("application not found during status update")
 		}
 		app.Status = "interviewed"
+		// Reflect the DB's now() so the response doesn't carry a stale timestamp.
+		app.UpdatedAt = time.Now()
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -394,6 +411,26 @@ func (s *Service) ScheduleInterview(ctx context.Context, applicationID, companyI
 		CreatedAt:    app.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:    app.UpdatedAt.Format(time.RFC3339),
 	}, nil
+}
+
+// isValidMeetingLink reports whether s is a usable meeting link: either an
+// absolute http(s) URL or a scheme-less host form (meet.google.com/abc).
+// Scheme-less inputs must look like a domain (contain a dot) and must not
+// carry a scheme separator — that rejects javascript:/data: URLs while
+// accepting the plain host forms people paste from meeting UIs.
+func isValidMeetingLink(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	if strings.Contains(s, "://") {
+		u, err := url.Parse(s)
+		if err != nil {
+			return false
+		}
+		return u.Scheme == "http" || u.Scheme == "https"
+	}
+	return strings.Contains(s, ".") && !strings.Contains(s, ":")
 }
 
 // CompanyApplicationResult extends ApplicationResult with candidate info for company views.
