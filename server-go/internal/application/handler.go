@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -437,9 +438,12 @@ func (h *Handler) ScheduleInterview(c *gin.Context) {
 	}
 
 	// Best-effort: notify + email the candidate with the appointment details.
+	// Mirror the service's mode normalization so "ONLINE"/" online " get the
+	// meeting link as the place, matching what was persisted.
 	if h.notifier != nil {
+		mode := strings.ToLower(strings.TrimSpace(req.Mode))
 		place := req.Location
-		if req.Mode == "online" {
+		if mode == "online" {
 			place = req.MeetingLink
 		}
 		if place == "" {
