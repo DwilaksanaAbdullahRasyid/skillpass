@@ -15,6 +15,25 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/.well-known/jwks.json": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Verify"
+                ],
+                "summary": "Issuer public keys (JWKS)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/JWKS"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/verifications/pending": {
             "get": {
                 "description": "Get all companies with pending verification status. Requires admin role.",
@@ -421,6 +440,65 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ]
+            }
+        },
+        "/ats/offers/{token}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ATS"
+                ],
+                "summary": "Public offer view (candidate token)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Accept token",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PublicOffer"
+                        }
+                    }
+                }
+            }
+        },
+        "/ats/offers/{token}/accept": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ATS"
+                ],
+                "summary": "Accept an offer (public, candidate token)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Accept token",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/AcceptOfferResult"
+                        }
+                    }
+                }
             }
         },
         "/auth/forgot-password": {
@@ -2012,6 +2090,28 @@ const docTemplate = `{
                             "type": "object",
                             "additionalProperties": {
                                 "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/hris/ats/pipelines": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ATS"
+                ],
+                "summary": "List ATS pipelines",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/AtsPipeline"
                             }
                         }
                     }
@@ -3767,6 +3867,62 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/verify/credential": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Verify"
+                ],
+                "summary": "Verify a signed credential (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Attestation ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/VerifiedCredential"
+                        }
+                    }
+                }
+            }
+        },
+        "/verify/passport/{slug}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Verify"
+                ],
+                "summary": "Public Skill Passport (verified badges)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Passport slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PublicPassport"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -3777,6 +3933,21 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "tip": {
+                    "type": "string"
+                }
+            }
+        },
+        "AcceptOfferResult": {
+            "type": "object",
+            "properties": {
+                "employeeLinked": {
+                    "description": "true if bound to the candidate's existing login",
+                    "type": "boolean"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }
@@ -3827,6 +3998,46 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "AtsPipeline": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isDefault": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "stages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AtsStage"
+                    }
+                }
+            }
+        },
+        "AtsStage": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "stageType": {
                     "type": "string"
                 }
             }
@@ -4320,6 +4531,45 @@ const docTemplate = `{
                 }
             }
         },
+        "JWK": {
+            "type": "object",
+            "properties": {
+                "alg": {
+                    "description": "EdDSA",
+                    "type": "string"
+                },
+                "crv": {
+                    "description": "Ed25519",
+                    "type": "string"
+                },
+                "kid": {
+                    "type": "string"
+                },
+                "kty": {
+                    "description": "OKP",
+                    "type": "string"
+                },
+                "use": {
+                    "description": "sig",
+                    "type": "string"
+                },
+                "x": {
+                    "description": "base64url public key (no padding)",
+                    "type": "string"
+                }
+            }
+        },
+        "JWKS": {
+            "type": "object",
+            "properties": {
+                "keys": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/JWK"
+                    }
+                }
+            }
+        },
         "JobMatch": {
             "type": "object",
             "properties": {
@@ -4529,6 +4779,55 @@ const docTemplate = `{
                 }
             }
         },
+        "PublicOffer": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "candidateName": {
+                    "type": "string"
+                },
+                "companyName": {
+                    "type": "string"
+                },
+                "positionTitle": {
+                    "type": "string"
+                },
+                "salary": {
+                    "type": "string"
+                },
+                "startDate": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "PublicPassport": {
+            "type": "object",
+            "properties": {
+                "companyName": {
+                    "type": "string"
+                },
+                "identityVerified": {
+                    "type": "boolean"
+                },
+                "issuerDid": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "skills": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PublicSkillBadge"
+                    }
+                }
+            }
+        },
         "PublicProfileResponse": {
             "type": "object",
             "properties": {
@@ -4555,6 +4854,27 @@ const docTemplate = `{
                 },
                 "yearsOfExperience": {
                     "type": "integer"
+                }
+            }
+        },
+        "PublicSkillBadge": {
+            "type": "object",
+            "properties": {
+                "attestationId": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "skillName": {
+                    "type": "string"
+                },
+                "verified": {
+                    "type": "boolean"
+                },
+                "verifyPath": {
+                    "description": "/verify/credential?id=\u003cattestationId\u003e",
+                    "type": "string"
                 }
             }
         },
@@ -5024,6 +5344,35 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "VerifiedCredential": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "issuedAt": {
+                    "type": "string"
+                },
+                "issuerDid": {
+                    "type": "string"
+                },
+                "revoked": {
+                    "type": "boolean"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "skillName": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "verified": {
+                    "type": "boolean"
                 }
             }
         },

@@ -4,6 +4,42 @@
  */
 
 export interface paths {
+    "/.well-known/jwks.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Issuer public keys (JWKS) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JWKS"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/verifications/pending": {
         parameters: {
             query?: never;
@@ -433,6 +469,84 @@ export interface paths {
             };
         };
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ats/offers/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public offer view (candidate token) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Accept token */
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PublicOffer"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ats/offers/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept an offer (public, candidate token) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Accept token */
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AcceptOfferResult"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -2447,6 +2561,42 @@ export interface paths {
                         "application/json": {
                             [key: string]: string;
                         };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hris/ats/pipelines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List ATS pipelines */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AtsPipeline"][];
                     };
                 };
             };
@@ -4518,6 +4668,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/verify/credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Verify a signed credential (public) */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Attestation ID */
+                    id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VerifiedCredential"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/verify/passport/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public Skill Passport (verified badges) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Passport slug */
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PublicPassport"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4525,6 +4753,12 @@ export interface components {
         AISuggestion: {
             area?: string;
             tip?: string;
+        };
+        AcceptOfferResult: {
+            /** @description true if bound to the candidate's existing login */
+            employeeLinked?: boolean;
+            message?: string;
+            status?: string;
         };
         ApplicationMessage: {
             body?: string;
@@ -4543,6 +4777,19 @@ export interface components {
             latestNote?: string;
             status?: string;
             updatedAt?: string;
+        };
+        AtsPipeline: {
+            createdAt?: string;
+            id?: string;
+            isDefault?: boolean;
+            name?: string;
+            stages?: components["schemas"]["AtsStage"][];
+        };
+        AtsStage: {
+            id?: string;
+            name?: string;
+            sortOrder?: number;
+            stageType?: string;
         };
         CandidateMatch: {
             headline?: string;
@@ -4691,6 +4938,22 @@ export interface components {
             id?: string;
             name?: string;
         };
+        JWK: {
+            /** @description EdDSA */
+            alg?: string;
+            /** @description Ed25519 */
+            crv?: string;
+            kid?: string;
+            /** @description OKP */
+            kty?: string;
+            /** @description sig */
+            use?: string;
+            /** @description base64url public key (no padding) */
+            x?: string;
+        };
+        JWKS: {
+            keys?: components["schemas"]["JWK"][];
+        };
         JobMatch: {
             companyName?: string;
             experienceLevel?: string;
@@ -4759,6 +5022,22 @@ export interface components {
             username?: string;
             yearsOfExperience?: number;
         };
+        PublicOffer: {
+            body?: string;
+            candidateName?: string;
+            companyName?: string;
+            positionTitle?: string;
+            salary?: string;
+            startDate?: string;
+            status?: string;
+        };
+        PublicPassport: {
+            companyName?: string;
+            identityVerified?: boolean;
+            issuerDid?: string;
+            name?: string;
+            skills?: components["schemas"]["PublicSkillBadge"][];
+        };
         PublicProfileResponse: {
             about?: string;
             avatarUrl?: string;
@@ -4767,6 +5046,14 @@ export interface components {
             name?: string;
             viewCount?: number;
             yearsOfExperience?: number;
+        };
+        PublicSkillBadge: {
+            attestationId?: string;
+            score?: number;
+            skillName?: string;
+            verified?: boolean;
+            /** @description /verify/credential?id=<attestationId> */
+            verifyPath?: string;
         };
         RatingArea: {
             area?: string;
@@ -4914,6 +5201,16 @@ export interface components {
         VerificationSubmittedResponse: {
             message?: string;
             status?: string;
+        };
+        VerifiedCredential: {
+            id?: string;
+            issuedAt?: string;
+            issuerDid?: string;
+            revoked?: boolean;
+            score?: number;
+            skillName?: string;
+            type?: string;
+            verified?: boolean;
         };
         "internal_analytics.CompanyAnalytics": {
             applicationsByStatus?: components["schemas"]["internal_analytics.StatusCount"][];

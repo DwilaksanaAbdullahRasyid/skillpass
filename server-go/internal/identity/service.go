@@ -13,7 +13,11 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrNotFound = errors.New("not found")
+var (
+	ErrNotFound    = errors.New("not found")
+	ErrBadProvider = errors.New("unknown identity provider")
+	ErrBadInput    = errors.New("invalid input")
+)
 
 type Service struct {
 	db     *sql.DB

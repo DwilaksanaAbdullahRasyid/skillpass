@@ -24,8 +24,10 @@ import {
   Receipt,
   ScanFace,
   Shield,
+  ShieldCheck,
   UserCircle,
   Users,
+  Workflow,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
@@ -98,8 +100,18 @@ const groups: NavGroup[] = [
     ],
   },
   {
+    title: 'Recruitment',
+    items: [
+      { to: '/hris/ats', label: 'Hiring Pipeline', icon: Workflow },
+      { to: '/hris/ats/offer-templates', label: 'Offer Templates', icon: FileText },
+    ],
+  },
+  {
     title: 'Trust & Security',
-    items: [{ to: '/hris/face-enrollment', label: 'Face ID', icon: ScanFace }],
+    items: [
+      { to: '/hris/face-enrollment', label: 'Face ID', icon: ScanFace },
+      { to: '/hris/identity', label: 'Identity & Credentials', icon: ShieldCheck },
+    ],
   },
   {
     title: 'Settings',

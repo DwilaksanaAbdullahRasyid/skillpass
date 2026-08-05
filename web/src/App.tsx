@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { RootLayout } from '@/components/layout/RootLayout';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { HrisRoute } from '@/components/ui/HrisRoute';
 import { LoadingFallback } from '@/components/ui/LoadingFallback';
 import { ProtectedRoute } from '@/components/ui/ProtectedRoute';
 import { AuthProvider } from '@/hooks/useAuth';
@@ -86,12 +87,22 @@ const HRAnalytics = lazy(() => import('./pages/hris/HRAnalytics'));
 const OnboardingTemplates = lazy(() => import('./pages/hris/OnboardingTemplates'));
 const OnboardingChecklists = lazy(() => import('./pages/hris/OnboardingChecklists'));
 const MyOnboarding = lazy(() => import('./pages/hris/MyOnboarding'));
+const ATSPipeline = lazy(() => import('./pages/hris/ATSPipeline'));
+const ATSCandidateDetail = lazy(() => import('./pages/hris/ATSCandidateDetail'));
+const ATSOfferTemplates = lazy(() => import('./pages/hris/ATSOfferTemplates'));
+const IdentityVerification = lazy(() => import('./pages/hris/IdentityVerification'));
+const OfferAccept = lazy(() => import('./pages/OfferAccept'));
+const VerifyCredentialPage = lazy(() => import('./pages/VerifyCredential'));
+const VerifiablePassport = lazy(() => import('./pages/VerifiablePassport'));
 
 const router = createBrowserRouter([
   {
     element: <RootLayout />,
     children: [
       { path: '/', element: <Landing /> },
+      { path: '/offer/:token', element: <OfferAccept /> },
+      { path: '/verify', element: <VerifyCredentialPage /> },
+      { path: '/passport/:slug', element: <VerifiablePassport /> },
       { path: '/auth/login', element: <Login /> },
       { path: '/auth/register', element: <Register /> },
       { path: '/auth/forgot-password', element: <ForgotPassword /> },
@@ -248,9 +259,9 @@ const router = createBrowserRouter([
       {
         path: '/hris',
         element: (
-          <ProtectedRoute requiredRole="company">
+          <HrisRoute>
             <HRISLayout />
-          </ProtectedRoute>
+          </HrisRoute>
         ),
         children: [
           { index: true, element: <EmployeeList /> },
@@ -286,6 +297,10 @@ const router = createBrowserRouter([
           { path: 'onboarding-templates', element: <OnboardingTemplates /> },
           { path: 'onboarding-checklists', element: <OnboardingChecklists /> },
           { path: 'my-onboarding', element: <MyOnboarding /> },
+          { path: 'ats', element: <ATSPipeline /> },
+          { path: 'ats/candidates/:id', element: <ATSCandidateDetail /> },
+          { path: 'ats/offer-templates', element: <ATSOfferTemplates /> },
+          { path: 'identity', element: <IdentityVerification /> },
         ],
       },
     ],

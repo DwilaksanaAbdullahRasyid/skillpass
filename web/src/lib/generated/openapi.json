@@ -7,6 +7,26 @@
         "version": "1.0"
     },
     "paths": {
+        "/.well-known/jwks.json": {
+            "get": {
+                "tags": [
+                    "Verify"
+                ],
+                "summary": "Issuer public keys (JWKS)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/JWKS"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/admin/verifications/pending": {
             "get": {
                 "description": "Get all companies with pending verification status. Requires admin role.",
@@ -478,6 +498,68 @@
                         "BearerAuth": []
                     }
                 ]
+            }
+        },
+        "/ats/offers/{token}": {
+            "get": {
+                "tags": [
+                    "ATS"
+                ],
+                "summary": "Public offer view (candidate token)",
+                "parameters": [
+                    {
+                        "description": "Accept token",
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PublicOffer"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ats/offers/{token}/accept": {
+            "post": {
+                "tags": [
+                    "ATS"
+                ],
+                "summary": "Accept an offer (public, candidate token)",
+                "parameters": [
+                    {
+                        "description": "Accept token",
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AcceptOfferResult"
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         "/auth/forgot-password": {
@@ -2319,6 +2401,29 @@
                                     "type": "object",
                                     "additionalProperties": {
                                         "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/hris/ats/pipelines": {
+            "get": {
+                "tags": [
+                    "ATS"
+                ],
+                "summary": "List ATS pipelines",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/AtsPipeline"
                                     }
                                 }
                             }
@@ -4325,6 +4430,68 @@
                     }
                 }
             }
+        },
+        "/verify/credential": {
+            "get": {
+                "tags": [
+                    "Verify"
+                ],
+                "summary": "Verify a signed credential (public)",
+                "parameters": [
+                    {
+                        "description": "Attestation ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VerifiedCredential"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/verify/passport/{slug}": {
+            "get": {
+                "tags": [
+                    "Verify"
+                ],
+                "summary": "Public Skill Passport (verified badges)",
+                "parameters": [
+                    {
+                        "description": "Passport slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PublicPassport"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "servers": [
@@ -4370,6 +4537,21 @@
                         "type": "string"
                     },
                     "tip": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AcceptOfferResult": {
+                "type": "object",
+                "properties": {
+                    "employeeLinked": {
+                        "description": "true if bound to the candidate's existing login",
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "status": {
                         "type": "string"
                     }
                 }
@@ -4420,6 +4602,46 @@
                         "type": "string"
                     },
                     "updatedAt": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AtsPipeline": {
+                "type": "object",
+                "properties": {
+                    "createdAt": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "isDefault": {
+                        "type": "boolean"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "stages": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AtsStage"
+                        }
+                    }
+                }
+            },
+            "AtsStage": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "sortOrder": {
+                        "type": "integer"
+                    },
+                    "stageType": {
                         "type": "string"
                     }
                 }
@@ -4913,6 +5135,45 @@
                     }
                 }
             },
+            "JWK": {
+                "type": "object",
+                "properties": {
+                    "alg": {
+                        "description": "EdDSA",
+                        "type": "string"
+                    },
+                    "crv": {
+                        "description": "Ed25519",
+                        "type": "string"
+                    },
+                    "kid": {
+                        "type": "string"
+                    },
+                    "kty": {
+                        "description": "OKP",
+                        "type": "string"
+                    },
+                    "use": {
+                        "description": "sig",
+                        "type": "string"
+                    },
+                    "x": {
+                        "description": "base64url public key (no padding)",
+                        "type": "string"
+                    }
+                }
+            },
+            "JWKS": {
+                "type": "object",
+                "properties": {
+                    "keys": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/JWK"
+                        }
+                    }
+                }
+            },
             "JobMatch": {
                 "type": "object",
                 "properties": {
@@ -5122,6 +5383,55 @@
                     }
                 }
             },
+            "PublicOffer": {
+                "type": "object",
+                "properties": {
+                    "body": {
+                        "type": "string"
+                    },
+                    "candidateName": {
+                        "type": "string"
+                    },
+                    "companyName": {
+                        "type": "string"
+                    },
+                    "positionTitle": {
+                        "type": "string"
+                    },
+                    "salary": {
+                        "type": "string"
+                    },
+                    "startDate": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
+                }
+            },
+            "PublicPassport": {
+                "type": "object",
+                "properties": {
+                    "companyName": {
+                        "type": "string"
+                    },
+                    "identityVerified": {
+                        "type": "boolean"
+                    },
+                    "issuerDid": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "skills": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PublicSkillBadge"
+                        }
+                    }
+                }
+            },
             "PublicProfileResponse": {
                 "type": "object",
                 "properties": {
@@ -5148,6 +5458,27 @@
                     },
                     "yearsOfExperience": {
                         "type": "integer"
+                    }
+                }
+            },
+            "PublicSkillBadge": {
+                "type": "object",
+                "properties": {
+                    "attestationId": {
+                        "type": "string"
+                    },
+                    "score": {
+                        "type": "integer"
+                    },
+                    "skillName": {
+                        "type": "string"
+                    },
+                    "verified": {
+                        "type": "boolean"
+                    },
+                    "verifyPath": {
+                        "description": "/verify/credential?id=<attestationId>",
+                        "type": "string"
                     }
                 }
             },
@@ -5617,6 +5948,35 @@
                     },
                     "status": {
                         "type": "string"
+                    }
+                }
+            },
+            "VerifiedCredential": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "issuedAt": {
+                        "type": "string"
+                    },
+                    "issuerDid": {
+                        "type": "string"
+                    },
+                    "revoked": {
+                        "type": "boolean"
+                    },
+                    "score": {
+                        "type": "integer"
+                    },
+                    "skillName": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "verified": {
+                        "type": "boolean"
                     }
                 }
             },

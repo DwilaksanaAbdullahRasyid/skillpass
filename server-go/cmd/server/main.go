@@ -35,6 +35,7 @@ import (
 	"skillpass-server-go/internal/evaluation"
 	"skillpass-server-go/internal/face"
 	"skillpass-server-go/internal/handlers"
+	"skillpass-server-go/internal/hris/ats"
 	"skillpass-server-go/internal/hris/attendance"
 	"skillpass-server-go/internal/hris/employee"
 	"skillpass-server-go/internal/hris/holiday"
@@ -358,7 +359,8 @@ func main() {
 	// Documents (Phase 2 · Sprint 1): private storage + optional ClamAV scan.
 	docStore := storage.NewLocalStoreAt(cfg.DocumentsDir)
 	docScanner := documents.NewScanner(cfg.ClamAVAddr)
-	docHandler := documents.NewHandler(documents.NewService(database, bunDB, docStore, docScanner))
+	docService := documents.NewService(database, bunDB, docStore, docScanner)
+	docHandler := documents.NewHandler(docService)
 
 	// Face recognition (Phase 2 · Sprint 2): embeddings encrypted at rest.
 	faceService, err := face.NewService(database, bunDB, face.NewClient(cfg.FaceServiceURL), cfg.JWTSecret, cfg.FaceMatchThreshold, cfg.FaceReviewThreshold)
@@ -370,6 +372,13 @@ func main() {
 	// Verifiable identity (Phase 2 · Sprint 3): Ed25519 signatures, no blockchain.
 	identityService := identity.NewService(database, identity.NewSigner(cfg.JWTSecret))
 	identityHandler := identity.NewHandler(identityService)
+	// Anchor eligible documents into the signed integrity log after a clean scan (Sprint 6).
+	docService.SetAnchorer(identityService)
+
+	// ATS full pipeline + ATS→HRIS bridge (Phase 2 · Sprint 5).
+	atsService := ats.NewService(database)
+	atsService.SetNotifier(notifService)
+	atsHandler := ats.NewHandler(atsService)
 
 	hris := api.Group("/hris")
 	hris.Use(middleware.AuthRequired(cfg.JWTSecret), rbac.RequireCompanyMember(rbacService))
@@ -392,8 +401,56 @@ func main() {
 	hrisIdentity.POST("/employees/:id/did", rbac.RequirePermission(rbacService, "org.manage", "employee.update"), identityHandler.IssueDID)
 	hrisIdentity.GET("/employees/:id/did", rbac.RequirePermission(rbacService, "org.view", "employee.view"), identityHandler.GetDID)
 	hrisIdentity.GET("/employees/:id/credentials", rbac.RequirePermission(rbacService, "org.view", "employee.view"), identityHandler.ListCredentials)
+	// Signed skill attestations (Sprint 6).
+	hrisIdentity.POST("/employees/:id/attest", rbac.RequirePermission(rbacService, "performance.manage"), identityHandler.AttestSkills)
+	hrisIdentity.GET("/employees/:id/attestations", rbac.RequirePermission(rbacService, "org.view", "employee.view"), identityHandler.ListAttestations)
+	// External identity verification (Dukcapil / PDDikti / manual).
+	hrisIdentity.POST("/employees/:id/verify", rbac.RequirePermission(rbacService, "org.manage", "employee.update"), identityHandler.RunVerification)
+	hrisIdentity.GET("/employees/:id/verifications", rbac.RequirePermission(rbacService, "org.view", "employee.view"), identityHandler.ListVerifications)
+	// Public Skill Passport settings.
+	hrisIdentity.GET("/employees/:id/passport", rbac.RequirePermission(rbacService, "org.view", "employee.view"), identityHandler.GetPassport)
+	hrisIdentity.PUT("/employees/:id/passport", rbac.RequirePermission(rbacService, "org.manage", "employee.update"), identityHandler.SetPassportVisibility)
+
 	// Public DID-document resolver (no auth).
 	api.GET("/did/:id", identityHandler.Resolve)
+	// Public verification surface (no auth): JWKS, credential check, Skill Passport.
+	r.GET("/.well-known/jwks.json", identityHandler.JWKS)
+	api.GET("/verify/credential", identityHandler.VerifyCredential)
+	api.GET("/verify/passport/:slug", identityHandler.PublicPassport)
+
+	// ── ATS (Phase 2 · Sprint 5) ──
+	hrisATS := hris.Group("/ats")
+	// Pipelines (configurable stage sequences).
+	hrisATS.GET("/pipelines", rbac.RequirePermission(rbacService, "ats.view", "ats.manage"), atsHandler.ListPipelines)
+	hrisATS.POST("/pipelines", rbac.RequirePermission(rbacService, "ats.manage"), atsHandler.CreatePipeline)
+	hrisATS.PUT("/pipelines/:id", rbac.RequirePermission(rbacService, "ats.manage"), atsHandler.UpdatePipeline)
+	hrisATS.DELETE("/pipelines/:id", rbac.RequirePermission(rbacService, "ats.manage"), atsHandler.DeletePipeline)
+	// Candidates.
+	hrisATS.GET("/candidates", rbac.RequirePermission(rbacService, "ats.view"), atsHandler.ListCandidates)
+	hrisATS.POST("/candidates", rbac.RequirePermission(rbacService, "ats.manage"), atsHandler.AddCandidate)
+	hrisATS.GET("/candidates/:id", rbac.RequirePermission(rbacService, "ats.view"), atsHandler.GetCandidate)
+	hrisATS.PUT("/candidates/:id/move", rbac.RequirePermission(rbacService, "ats.manage"), atsHandler.MoveCandidate)
+	hrisATS.PUT("/candidates/:id/status", rbac.RequirePermission(rbacService, "ats.manage"), atsHandler.SetCandidateStatus)
+	// Scorecards (per-candidate).
+	hrisATS.GET("/candidates/:id/scorecards", rbac.RequirePermission(rbacService, "ats.view", "ats.scorecard"), atsHandler.ListScorecards)
+	hrisATS.POST("/candidates/:id/scorecards", rbac.RequirePermission(rbacService, "ats.scorecard"), atsHandler.AddScorecard)
+	// Interviews (per-candidate).
+	hrisATS.GET("/candidates/:id/interviews", rbac.RequirePermission(rbacService, "ats.view", "ats.interview"), atsHandler.ListInterviews)
+	hrisATS.POST("/candidates/:id/interviews", rbac.RequirePermission(rbacService, "ats.interview"), atsHandler.ScheduleInterview)
+	hrisATS.PUT("/interviews/:id/status", rbac.RequirePermission(rbacService, "ats.interview"), atsHandler.UpdateInterviewStatus)
+	// Offers (per-candidate) + offer templates.
+	hrisATS.GET("/candidates/:id/offers", rbac.RequirePermission(rbacService, "ats.view", "ats.offer"), atsHandler.ListOffers)
+	hrisATS.POST("/candidates/:id/offers", rbac.RequirePermission(rbacService, "ats.offer"), atsHandler.CreateOffer)
+	hrisATS.POST("/offers/:id/send", rbac.RequirePermission(rbacService, "ats.offer"), atsHandler.SendOffer)
+	hrisATS.GET("/offer-templates", rbac.RequirePermission(rbacService, "ats.view", "ats.manage"), atsHandler.ListOfferTemplates)
+	hrisATS.POST("/offer-templates", rbac.RequirePermission(rbacService, "ats.manage"), atsHandler.CreateOfferTemplate)
+	hrisATS.PUT("/offer-templates/:id", rbac.RequirePermission(rbacService, "ats.manage"), atsHandler.UpdateOfferTemplate)
+	hrisATS.DELETE("/offer-templates/:id", rbac.RequirePermission(rbacService, "ats.manage"), atsHandler.DeleteOfferTemplate)
+
+	// Public offer acceptance (candidate token — no auth; the token is the credential).
+	api.GET("/ats/offers/:token", atsHandler.GetPublicOffer)
+	api.POST("/ats/offers/:token/accept", atsHandler.AcceptOffer)
+	api.POST("/ats/offers/:token/decline", atsHandler.DeclineOffer)
 
 	hrisEmployees := hris.Group("/employees")
 	hrisEmployees.GET("", rbac.RequirePermission(rbacService, "employee.view", "employee.view_team"), empHandler.List)

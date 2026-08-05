@@ -38,16 +38,32 @@ var validCategory = map[string]bool{
 
 var extPattern = regexp.MustCompile(`^[a-zA-Z0-9.]+$`)
 
+// Anchorer appends a signed, hash-chained integrity record for an entity
+// (implemented by the identity service). Wired in main.go; optional.
+type Anchorer interface {
+	Anchor(ctx context.Context, entityType string, entityID uuid.UUID, sha256Hash string) error
+}
+
+// anchorCategories are document categories eligible for integrity anchoring
+// after a clean malware scan (Phase 2 · Sprint 6).
+var anchorCategories = map[string]bool{
+	"contract": true, "certificate": true, "payslip": true,
+}
+
 type Service struct {
-	db      *sql.DB
-	bun     bun.IDB
-	store   storage.Store
-	scanner *Scanner
+	db       *sql.DB
+	bun      bun.IDB
+	store    storage.Store
+	scanner  *Scanner
+	anchorer Anchorer
 }
 
 func NewService(db *sql.DB, bunDB bun.IDB, store storage.Store, scanner *Scanner) *Service {
 	return &Service{db: db, bun: bunDB, store: store, scanner: scanner}
 }
+
+// SetAnchorer enables integrity anchoring of eligible documents after a clean scan.
+func (s *Service) SetAnchorer(a Anchorer) { s.anchorer = a }
 
 // DocumentResponse is the API shape (camelCase, PII-safe).
 type DocumentResponse struct {
@@ -162,6 +178,31 @@ func (s *Service) scanAndUpdate(docID uuid.UUID, data []byte) {
 	if _, err := s.db.ExecContext(ctx,
 		`UPDATE documents SET scan_status = $1 WHERE id = $2`, status, docID); err != nil {
 		slog.Error("update scan status", "documentID", docID, "error", err)
+		return
+	}
+	if status == "clean" {
+		s.anchorIfEligible(ctx, docID)
+	}
+}
+
+// anchorIfEligible appends a signed integrity anchor for eligible document
+// categories (contract/certificate/payslip) once they pass the malware scan.
+// Best-effort — a signed, tamper-evident record of the file's SHA-256.
+func (s *Service) anchorIfEligible(ctx context.Context, docID uuid.UUID) {
+	if s.anchorer == nil {
+		return
+	}
+	var category, hash string
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT category::text, sha256_hash FROM documents WHERE id=$1`, docID).Scan(&category, &hash); err != nil {
+		slog.Warn("anchor lookup", "documentID", docID, "error", err)
+		return
+	}
+	if !anchorCategories[category] {
+		return
+	}
+	if err := s.anchorer.Anchor(ctx, "document", docID, hash); err != nil {
+		slog.Warn("anchor document", "documentID", docID, "error", err)
 	}
 }
 
